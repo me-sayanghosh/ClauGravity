@@ -135,7 +135,7 @@ RULES = [
     {
         "id": "JS-SEC-CORS-PERMISSIVE",
         "category": "Security",
-        "regex": re.compile(r"""cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)"""),
+        "regex": re.compile(r"""(?:cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)|origin\s*:\s*["']\*["'])"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Overly permissive CORS configuration allows arbitrary third-party origins to access responses."
@@ -143,18 +143,26 @@ RULES = [
     {
         "id": "JS-SEC-JWT-FLAW",
         "category": "Security",
-        "regex": re.compile(r"""jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])"""),
+        "regex": re.compile(r"""(?:jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.[A-Z0-9_]+\s*\|\|\s*["'][^"']+["'])"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
-        "explanation": "JWT signed with fallback default secret or none algorithm compromises token integrity."
+        "explanation": "JWT signed with fallback default secret or insecure default value in source."
     },
     {
         "id": "JS-BUG-EMPTY-CATCH",
         "category": "Correctness",
-        "regex": re.compile(r"""catch\s*(?:\([^)]*\))?\s*\{\s*\}"""),
+        "regex": re.compile(r"""catch\s*(?:\([^)]*\))?\s*\{\s*(?://[^\n]*)?$"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
-        "explanation": "Empty catch block silently swallows exceptions, obscuring critical runtime errors."
+        "explanation": "Empty or comment-only catch block silently swallows exceptions, obscuring critical runtime errors."
+    },
+    {
+        "id": "JS-BUG-FLOAT-MONEY",
+        "category": "Correctness",
+        "regex": re.compile(r"""(?:==|===)\s*0\.0\b|\b0\.0\s*(?:==|===)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Direct floating-point equality check with 0.0 risks precision failure in financial calculations."
     },
     {
         "id": "JS-SEC-LOG-SECRETS",

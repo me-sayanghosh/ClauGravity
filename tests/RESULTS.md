@@ -69,3 +69,28 @@ Automated scanning identified 4 of the 12 defects directly as leads. The remaini
 | **Decoy 2** | Route Protected by Router Middleware | `src/routes/products.js:18-29` | **Correctly Discarded** (Verified router.use auth) |
 | **Decoy 3** | Math.random Used for UI Shuffling | `client/OrderList.jsx:21` | **Correctly Discarded** (Verified non-security UI usage) |
 
+---
+
+## Iteration 1 fixes
+
+Following the evaluation of Iteration 1, general skill materials were enhanced to improve lead detection and scanner sensitivity across multi-line declarations:
+
+1. **Scanner Enhancement for Multi-Line CORS:**
+   - *Problem:* `find_risk_patterns.py` scanned strictly line-by-line, missing `cors({ origin: "*" })` when options spanned multiple lines.
+   - *Fix:* Expanded `JS-SEC-CORS-PERMISSIVE` regex to match `origin:\s*["']*["']` directly on the option line.
+
+2. **Detection of Inline Fallback Secrets:**
+   - *Problem:* Default fallback secrets on `process.env.SECRET || "insecure"` were missed when split across arguments.
+   - *Fix:* Added pattern detection for `process.env.[A-Z0-9_]+\s*\|\|\s*["'][^"']+["']` in `JS-SEC-JWT-FLAW`.
+
+3. **Multi-Line and Comment-Only Catch Swallowing:**
+   - *Problem:* Empty catches containing comments were not flagged by single-line `{}` regex.
+   - *Fix:* Enhanced `JS-BUG-EMPTY-CATCH` regex to detect `catch.*\{\s*(?://.*)?$` matching multi-line blocks.
+
+4. **Floating-Point Equality Detection:**
+   - *Problem:* Float money comparisons against `0.0` lacked dedicated static pattern detection.
+   - *Fix:* Added `JS-BUG-FLOAT-MONEY` targeting `=== 0.0` and `0.0 ===` patterns in financial logic.
+
+*Verification:* All 5 analysis scripts re-verified with `--help` and executed cleanly against both the fixture project and workspace root.
+
+
