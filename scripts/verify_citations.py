@@ -13,6 +13,7 @@ Examples:
 """
 
 import argparse
+import json
 import os
 import re
 import sys
@@ -118,7 +119,7 @@ def verify_single_citation(finding, root_dir, tolerance=5):
 
     return False, f"Excerpt text not found in lines {search_start}-{search_end}"
 
-def verify_report(report_path, root_path="."):
+def verify_report(report_path, root_path=".", tolerance=5, as_json=False):
     report_file = Path(report_path).resolve()
     root_dir = Path(root_path).resolve()
 
@@ -132,39 +133,73 @@ def verify_report(report_path, root_path="."):
 
     findings = parse_findings(text)
 
-    print("=" * 70)
-    print(f"CLAUGRAVITY CITATION VERIFIER")
-    print(f"Report: {report_file}")
-    print(f"Target Root: {root_dir}")
-    print(f"Total Cited Findings Parsed: {len(findings)}")
-    print("=" * 70)
+    if not as_json:
+        print("=" * 70)
+        print(f"CLAUGRAVITY CITATION VERIFIER")
+        print(f"Report: {report_file}")
+        print(f"Target Root: {root_dir}")
+        print(f"Total Cited Findings Parsed: {len(findings)}")
+        print("=" * 70)
 
     if not findings:
-        print("Warning: No finding citations matching template layout were found in report.")
-        print("Expected format: **Location:** `path:line` followed by **Evidence:** and fenced code block.")
+        if as_json:
+            print(json.dumps({
+                "report": str(report_file),
+                "root": str(root_dir),
+                "total_citations": 0,
+                "passed": 0,
+                "failed": 0,
+                "all_passed": False,
+                "citations": [],
+                "error": "No finding citations matching template layout were found in report."
+            }, indent=2))
+        else:
+            print("Warning: No finding citations matching template layout were found in report.")
+            print("Expected format: **Location:** `path:line` followed by **Evidence:** and fenced code block.")
         return False
 
     all_passed = True
     pass_count = 0
     fail_count = 0
+    results = []
 
     for idx, f in enumerate(findings, start=1):
-        ok, reason = verify_single_citation(f, root_dir)
+        ok, reason = verify_single_citation(f, root_dir, tolerance=tolerance)
         status = "PASS" if ok else "FAIL"
+        results.append({
+            "id": idx,
+            "title": f["title"],
+            "location": f["raw_location"],
+            "status": status,
+            "reason": reason
+        })
         if ok:
             pass_count += 1
-            print(f"[{status}] Finding #{idx}: {f['raw_location']}")
-            print(f"       {f['title']}")
+            if not as_json:
+                print(f"[{status}] Finding #{idx}: {f['raw_location']}")
+                print(f"       {f['title']}")
         else:
             fail_count += 1
             all_passed = False
-            print(f"[{status}] Finding #{idx}: {f['raw_location']}")
-            print(f"       {f['title']}")
-            print(f"       Reason: {reason}")
+            if not as_json:
+                print(f"[{status}] Finding #{idx}: {f['raw_location']}")
+                print(f"       {f['title']}")
+                print(f"       Reason: {reason}")
 
-    print("-" * 70)
-    print(f"SUMMARY: {pass_count} Passed | {fail_count} Failed")
-    print("=" * 70)
+    if as_json:
+        print(json.dumps({
+            "report": str(report_file),
+            "root": str(root_dir),
+            "total_citations": len(findings),
+            "passed": pass_count,
+            "failed": fail_count,
+            "all_passed": all_passed,
+            "citations": results
+        }, indent=2))
+    else:
+        print("-" * 70)
+        print(f"SUMMARY: {pass_count} Passed | {fail_count} Failed")
+        print("=" * 70)
 
     return all_passed
 
@@ -172,9 +207,11 @@ def main():
     parser = argparse.ArgumentParser(description="Verify that all citations in an audit report exist verbatim in code.")
     parser.add_argument("report", help="Path to markdown audit report or PR review")
     parser.add_argument("--root", default=".", help="Root directory of audited project (default: .)")
+    parser.add_argument("--tolerance", type=int, default=5, help="Line search tolerance window (default: 5)")
+    parser.add_argument("--json", action="store_true", help="Output results in JSON format")
     args = parser.parse_args()
 
-    passed = verify_report(args.report, root_path=args.root)
+    passed = verify_report(args.report, root_path=args.root, tolerance=args.tolerance, as_json=args.json)
     sys.exit(0 if passed else 1)
 
 if __name__ == "__main__":

@@ -48,7 +48,7 @@ RISK_WEIGHTS = {
 
 KEYWORD_MAP = {
     "auth": ["auth", "session", "jwt", "user", "login", "token", "permission", "rbac"],
-    "payment": ["pay", "billing", "stripe", "invoice", "subscript", "checkout", "wallet", "balance", "price"],
+    "payment": ["pay", "billing", "stripe", "invoice", "subscript", "checkout", "wallet", "balance", "pric", "fee", "cost", "money", "currency", "tax"],
     "db": ["db", "model", "schema", "repositor", "database", "store", "migrat", "entity"],
     "routes": ["route", "controller", "api", "endpoint", "handler", "view", "router"],
     "io": ["upload", "file", "process", "exec", "download", "storage", "fs", "stream"]
@@ -96,6 +96,24 @@ def count_lines(file_path):
 def get_recent_churn(root_dir):
     churn = {}
     try:
+        # Determine git root to strip subdirectory prefix if needed
+        git_root_out = subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=root_dir,
+            text=True,
+            stderr=subprocess.DEVNULL
+        ).strip()
+        git_root = Path(git_root_out).resolve()
+        target_root = Path(root_dir).resolve()
+
+        rel_prefix = ""
+        try:
+            diff_rel = target_root.relative_to(git_root)
+            if str(diff_rel) != ".":
+                rel_prefix = str(diff_rel).replace(os.sep, "/") + "/"
+        except ValueError:
+            pass
+
         out = subprocess.check_output(
             ["git", "log", "--since=6.months", "--name-only", "--pretty=format:"],
             cwd=root_dir,
@@ -104,8 +122,12 @@ def get_recent_churn(root_dir):
         )
         for line in out.splitlines():
             line = line.strip().replace(os.sep, "/")
-            if line:
-                churn[line] = churn.get(line, 0) + 1
+            if not line:
+                continue
+            if rel_prefix and line.startswith(rel_prefix):
+                sub_line = line[len(rel_prefix):]
+                churn[sub_line] = churn.get(sub_line, 0) + 1
+            churn[line] = churn.get(line, 0) + 1
     except Exception:
         pass
     return churn

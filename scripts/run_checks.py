@@ -86,8 +86,18 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
         except Exception:
             pass
 
+        if "lint" not in scripts and is_tool_available("eslint"):
+            res = run_cmd(["eslint", "."], cwd=root, timeout=timeout)
+            results.append({"name": "eslint", "tool": "eslint", "category": "Linter", **res})
+
         # Production audit
-        if is_tool_available("npm"):
+        if (root / "yarn.lock").is_file() and is_tool_available("yarn"):
+            res = run_cmd(["yarn", "audit", "--groups", "dependencies"], cwd=root, timeout=timeout)
+            results.append({"name": "yarn audit (prod)", "tool": "yarn", "category": "Security", **res})
+        elif (root / "pnpm-lock.yaml").is_file() and is_tool_available("pnpm"):
+            res = run_cmd(["pnpm", "audit", "--prod"], cwd=root, timeout=timeout)
+            results.append({"name": "pnpm audit (prod)", "tool": "pnpm", "category": "Security", **res})
+        elif is_tool_available("npm"):
             res = run_cmd(["npm", "audit", "--omit=dev"], cwd=root, timeout=timeout)
             results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", **res})
 
