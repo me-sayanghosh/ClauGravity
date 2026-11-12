@@ -49,11 +49,44 @@ EXT_LANG_MAP = {
 }
 
 ROUTE_REGEXES = [
-    re.compile(r"""(?:app|router)\.(get|post|put|delete|patch|options|all)\s*\(\s*['"]([^'"]+)['"]""", re.I),
-    re.compile(r"""@app\.(?:route|get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]""", re.I),
-    re.compile(r"""path\s*\(\s*['"]([^'"]+)['"]""", re.I),
-    re.compile(r"""r\.(?:GET|POST|PUT|DELETE|PATCH)\s*\(\s*['"]([^'"]+)['"]""", re.I),
+    # Express / Fastify / Node routers
+    re.compile(r"""\b(?:app|router|fastify|server)\.(get|post|put|delete|patch|options|all|route)\s*\(\s*['"]([^'"]+)['"]""", re.I),
+    # Flask / FastAPI Python decorators
+    re.compile(r"""@(?:app|router|api|bp|blueprint|api_router)\.(route|get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]""", re.I),
+    # Django path / re_path
+    re.compile(r"""\b(?:path|re_path)\s*\(\s*['"]([^'"]+)['"]"""),
+    # Gin Go routes
+    re.compile(r"""\b(?:r|router|engine|group|v1|v2|api)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|Any)\s*\(\s*['"]([^'"]+)['"]"""),
+    # Spring Boot Java annotations
+    re.compile(r"""@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*\(\s*(?:(?:value|path)\s*=\s*)?['"]([^'"]+)['"]"""),
 ]
+
+def detect_frameworks(root, manifests):
+    frameworks = set()
+    for m in manifests:
+        mpath = root / m
+        if not mpath.is_file():
+            continue
+        try:
+            content = mpath.read_text(encoding="utf-8", errors="ignore").lower()
+            if m.endswith("package.json"):
+                for fw in ["express", "react", "next", "vue", "fastify", "nestjs", "koa", "angular", "svelte"]:
+                    if f'"{fw}"' in content:
+                        frameworks.add(fw.capitalize() if fw != "next" else "Next.js")
+            elif m.endswith((".txt", ".toml")):
+                for fw in ["django", "flask", "fastapi", "tornado", "pyramid"]:
+                    if fw in content:
+                        frameworks.add(fw.capitalize() if fw != "fastapi" else "FastAPI")
+            elif m.endswith("go.mod"):
+                for fw in ["gin", "fiber", "echo", "chi"]:
+                    if fw in content:
+                        frameworks.add(fw.capitalize())
+            elif m.endswith(("pom.xml", "build.gradle")):
+                if "spring" in content:
+                    frameworks.add("Spring Boot")
+        except Exception:
+            pass
+    return sorted(list(frameworks))
 
 def load_ignore_patterns(root_dir):
     patterns = set(DEFAULT_IGNORES)
@@ -104,13 +137,18 @@ def scan_routes(file_path, root_dir):
                     m = rx.search(line)
                     if m:
                         groups = m.groups()
-                        endpoint = groups[-1]
-                        method = groups[0].upper() if len(groups) > 1 else "ROUTE"
+                        if len(groups) >= 2:
+                            method = groups[0].upper()
+                            endpoint = groups[1]
+                        else:
+                            method = "ROUTE"
+                            endpoint = groups[0]
                         routes.append({
                             "method": method,
                             "path": endpoint,
                             "location": f"{rel_path}:{idx}"
                         })
+                        break
     except Exception:
         pass
     return routes
@@ -172,18 +210,23 @@ def analyze_repo(target_path, max_depth=6):
             if "test" in rel_str.lower() or "spec" in rel_str.lower():
                 test_dirs.add(str(fpath.parent.relative_to(root)).replace(os.sep, "/"))
 
-            if fname in {"server.js", "app.js", "index.js", "main.go", "app.py", "main.py", "wsgi.py", "asgi.py"} or (len(rel_dir.parts) <= 1 and fname.startswith("index.")):
+            if (fname in {"server.js", "app.js", "index.js", "main.go", "app.py", "main.py", "wsgi.py", "asgi.py"}
+                or fname.startswith("main.")
+                or (len(rel_dir.parts) <= 1 and fname.startswith("index."))
+                or "cmd" in rel_dir.parts):
                 entry_points.append(rel_str)
 
-            if ext in {".js", ".ts", ".jsx", ".tsx", ".py", ".go"}:
+            if ext in {".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".java"}:
                 routes.extend(scan_routes(fpath, root))
 
     all_files.sort(key=lambda x: x["loc"], reverse=True)
     largest_15 = all_files[:15]
+    frameworks = detect_frameworks(root, manifests)
 
     return {
         "root": str(root),
         "manifests": sorted(manifests),
+        "frameworks": frameworks,
         "configs": sorted(configs),
         "ci_docker": sorted(ci_docker),
         "entry_points": sorted(entry_points),
@@ -202,9 +245,11 @@ def print_text_summary(data):
     print(f"Total Files: {data['total_files']} | Total LOC: {data['total_loc']}")
     print("=" * 70)
 
-    print("\n[LANGUAGES & LOC]")
+    print("\n[LANGUAGES & FRAMEWORKS]")
     for lang, count in sorted(data["languages"].items(), key=lambda x: x[1], reverse=True):
         print(f"  - {lang:20}: {count:6} LOC")
+    if data.get("frameworks"):
+        print(f"  - Frameworks Detected : {', '.join(data['frameworks'])}")
 
     print("\n[LOC BY TOP-LEVEL DIRECTORY]")
     for top, count in sorted(data["loc_by_top_level"].items(), key=lambda x: x[1], reverse=True):
