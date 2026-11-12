@@ -9,7 +9,7 @@ Usage:
 
 Options:
     --json                Output results in JSON format
-    --category CATEGORY   Filter by category (Security, Concurrency, etc.)
+    --category CATEGORY   Filter by category (Security, Concurrency, Secrets, etc.)
     --min-severity SEV    Filter by minimum severity (Critical, High, Medium, Low, Info)
     --max-hits N          Limit total displayed hits (default: 100)
 
@@ -51,8 +51,14 @@ SEVERITY_ORDER = {
     "Info": 0
 }
 
-# JavaScript / TypeScript / Node / React / MongoDB Risk Rules
+PLACEHOLDERS = {
+    "changeme", "your-api-key", "example", "placeholder", "secret",
+    "password", "123456", "my-secret-key", "xxx", "todo", "test"
+}
+
+# Master Rule Registry
 RULES = [
+    # --- JavaScript / TypeScript / Node / React / Mongo ---
     {
         "id": "JS-SEC-EVAL",
         "category": "Security",
@@ -204,6 +210,230 @@ RULES = [
         "languages": [".env", ".env.local", ".env.production", ".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Critical",
         "explanation": "Exposing secret keys or passwords via frontend environment prefixes leaks credentials to clients."
+    },
+    {
+        "id": "JS-SEC-UNGUARDED-ROUTE",
+        "category": "Security",
+        "regex": re.compile(r"""(?:app|router)\.(?:post|put|delete)\s*\(\s*["'][^"']+["']\s*,\s*async\s*\("""),
+        "languages": [".js", ".ts"],
+        "severity_hint": "Medium",
+        "explanation": "State-changing HTTP route registered directly with async handler without inline auth middleware."
+    },
+
+    # --- Python Rules ---
+    {
+        "id": "PY-SEC-EVAL-EXEC",
+        "category": "Security",
+        "regex": re.compile(r"""\b(?:eval|exec)\s*\("""),
+        "languages": [".py"],
+        "severity_hint": "Critical",
+        "explanation": "Python eval() or exec() allows execution of arbitrary code."
+    },
+    {
+        "id": "PY-SEC-PICKLE",
+        "category": "Security",
+        "regex": re.compile(r"""\bpickle\.loads\s*\("""),
+        "languages": [".py"],
+        "severity_hint": "Critical",
+        "explanation": "Unpickling untrusted data leads directly to remote code execution."
+    },
+    {
+        "id": "PY-SEC-YAML",
+        "category": "Security",
+        "regex": re.compile(r"""yaml\.load\s*\([^)]*(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)"""),
+        "languages": [".py"],
+        "severity_hint": "High",
+        "explanation": "Calling yaml.load() without SafeLoader allows arbitrary Python object instantiation."
+    },
+    {
+        "id": "PY-SEC-SUBPROCESS-SHELL",
+        "category": "Security",
+        "regex": re.compile(r"""subprocess\.(?:Popen|run|call|check_output)\s*\([^)]*shell\s*=\s*True"""),
+        "languages": [".py"],
+        "severity_hint": "High",
+        "explanation": "Executing subprocess with shell=True permits command injection via unescaped shell metacharacters."
+    },
+    {
+        "id": "PY-SEC-SQL-FSTRING",
+        "category": "Security",
+        "regex": re.compile(r"""\.(?:execute|raw)\s*\(\s*f["']"""),
+        "languages": [".py"],
+        "severity_hint": "Critical",
+        "explanation": "SQL query formatted via Python f-string directly introduces SQL injection."
+    },
+    {
+        "id": "PY-SEC-SSL-DISABLED",
+        "category": "Security",
+        "regex": re.compile(r"""verify\s*=\s*False"""),
+        "languages": [".py"],
+        "severity_hint": "High",
+        "explanation": "HTTP client TLS certificate verification disabled (verify=False)."
+    },
+    {
+        "id": "PY-BUG-BARE-EXCEPT",
+        "category": "Correctness",
+        "regex": re.compile(r"""except\s*:"""),
+        "languages": [".py"],
+        "severity_hint": "Medium",
+        "explanation": "Bare except catches system exit and KeyboardInterrupt, concealing fatal defects."
+    },
+    {
+        "id": "PY-BUG-MUTABLE-DEFAULT",
+        "category": "Correctness",
+        "regex": re.compile(r"""def\s+[a-zA-Z0-9_]+\s*\([^)]*=\s*(?:\[\]|\{\})"""),
+        "languages": [".py"],
+        "severity_hint": "Medium",
+        "explanation": "Mutable default arguments ([] or {}) in Python retain state across invocations."
+    },
+    {
+        "id": "PY-SEC-DEBUG-TRUE",
+        "category": "Security",
+        "regex": re.compile(r"""DEBUG\s*=\s*True"""),
+        "languages": [".py"],
+        "severity_hint": "Medium",
+        "explanation": "DEBUG mode enabled exposes detailed tracebacks and interactive debuggers."
+    },
+
+    # --- Go Rules ---
+    {
+        "id": "GO-BUG-IGNORED-ERROR",
+        "category": "Correctness",
+        "regex": re.compile(r"""(?:,\s*_\s*:=|,\s*_\s*=\s*)[a-zA-Z0-9_.]+\s*\("""),
+        "languages": [".go"],
+        "severity_hint": "Medium",
+        "explanation": "Explicitly ignoring return error with blank identifier (_) masks failures."
+    },
+    {
+        "id": "GO-SEC-TLS-DISABLED",
+        "category": "Security",
+        "regex": re.compile(r"""InsecureSkipVerify\s*:\s*true"""),
+        "languages": [".go"],
+        "severity_hint": "High",
+        "explanation": "InsecureSkipVerify: true disables TLS certificate validation in Go."
+    },
+    {
+        "id": "GO-SEC-EXEC-CMD",
+        "category": "Security",
+        "regex": re.compile(r"""exec\.Command\s*\(\s*(?:r\.|req\.|input|cmd|name)"""),
+        "languages": [".go"],
+        "severity_hint": "High",
+        "explanation": "Spawning system command from variable or user request enables command injection."
+    },
+    {
+        "id": "GO-SEC-SQL-FORMAT",
+        "category": "Security",
+        "regex": re.compile(r"""(?:Query|Exec|QueryRow)\s*\(\s*fmt\.Sprintf\s*\("""),
+        "languages": [".go"],
+        "severity_hint": "Critical",
+        "explanation": "SQL query constructed via fmt.Sprintf instead of prepared statements."
+    },
+
+    # --- Java Rules ---
+    {
+        "id": "JAVA-SEC-SQL-CONCAT",
+        "category": "Security",
+        "regex": re.compile(r"""(?:executeQuery|executeUpdate)\s*\(\s*["'].*?["']\s*\+"""),
+        "languages": [".java"],
+        "severity_hint": "Critical",
+        "explanation": "Building SQL queries by concatenating strings instead of using PreparedStatement."
+    },
+    {
+        "id": "JAVA-SEC-OBJECT-INPUT",
+        "category": "Security",
+        "regex": re.compile(r"""new\s+ObjectInputStream\s*\("""),
+        "languages": [".java"],
+        "severity_hint": "High",
+        "explanation": "Java ObjectInputStream deserializes arbitrary object graphs, causing RCE."
+    },
+    {
+        "id": "JAVA-SEC-RUNTIME-EXEC",
+        "category": "Security",
+        "regex": re.compile(r"""Runtime\.getRuntime\s*\(\s*\)\.exec\s*\("""),
+        "languages": [".java"],
+        "severity_hint": "High",
+        "explanation": "Direct shell execution via Runtime.getRuntime().exec() with untrusted arguments."
+    },
+    {
+        "id": "JAVA-BUG-PRINT-STACK-TRACE",
+        "category": "Correctness",
+        "regex": re.compile(r"""\.printStackTrace\s*\(\s*\)"""),
+        "languages": [".java"],
+        "severity_hint": "Low",
+        "explanation": "Printing stack traces directly to stdout rather than using structured logging."
+    },
+
+    # --- Generic Secrets & Cryptography ---
+    {
+        "id": "GEN-SEC-AWS-KEY",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(AKIA[0-9A-Z]{16})\b"""),
+        "languages": [],
+        "severity_hint": "Critical",
+        "explanation": "Hard-coded Amazon Web Services (AWS) Access Key ID detected."
+    },
+    {
+        "id": "GEN-SEC-GITHUB-TOKEN",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(gh[pousr]_[0-9a-zA-Z]{36})\b"""),
+        "languages": [],
+        "severity_hint": "Critical",
+        "explanation": "Hard-coded GitHub personal access or OAuth token detected."
+    },
+    {
+        "id": "GEN-SEC-STRIPE-KEY",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(sk_live_[0-9a-zA-Z]{24,})\b"""),
+        "languages": [],
+        "severity_hint": "Critical",
+        "explanation": "Hard-coded Stripe live API secret key detected."
+    },
+    {
+        "id": "GEN-SEC-SLACK-TOKEN",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(xox[baprs]-[0-9a-zA-Z]{10,48})\b"""),
+        "languages": [],
+        "severity_hint": "Critical",
+        "explanation": "Hard-coded Slack Bot or User token detected."
+    },
+    {
+        "id": "GEN-SEC-PRIVATE-KEY",
+        "category": "Secrets",
+        "regex": re.compile(r"""-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"""),
+        "languages": [],
+        "severity_hint": "Critical",
+        "explanation": "Cryptographic private key header committed in plaintext."
+    },
+    {
+        "id": "GEN-SEC-HARDCODED-PASSWORD",
+        "category": "Secrets",
+        "regex": re.compile(r"""(?:password|passwd|pwd|secret)\s*=\s*["']([^"'\s]{6,})["']""", re.I),
+        "languages": [],
+        "severity_hint": "High",
+        "explanation": "Plaintext password or secret credential literal assigned in source."
+    },
+    {
+        "id": "GEN-BUG-TODO-COMMENT",
+        "category": "Correctness",
+        "regex": re.compile(r"""(?://|#|/\*)\s*(?:TODO|FIXME|HACK|XXX)\b"""),
+        "languages": [],
+        "severity_hint": "Info",
+        "explanation": "Developer reminder or unfinished work marker (TODO/FIXME)."
+    },
+    {
+        "id": "GEN-SEC-WEAK-HASH",
+        "category": "Security",
+        "regex": re.compile(r"""(?:crypto\.createHash\s*\(\s*["'](?:md5|sha1)["']|hashlib\.(?:md5|sha1)\s*\()"""),
+        "languages": [],
+        "severity_hint": "Medium",
+        "explanation": "Use of cryptographically broken hash algorithm (MD5 or SHA1)."
+    },
+    {
+        "id": "GEN-SEC-ECB-MODE",
+        "category": "Security",
+        "regex": re.compile(r"""(?:AES/ECB/|Cipher\.getInstance\s*\([^)]*ECB)"""),
+        "languages": [],
+        "severity_hint": "High",
+        "explanation": "Electronic Codebook (ECB) cipher mode does not provide semantic security."
     }
 ]
 
@@ -239,6 +469,32 @@ def is_ignored(path, root_dir, patterns):
             return True
     return False
 
+def redact_secrets(snippet, rule):
+    if rule["category"] == "Secrets" or "TOKEN" in rule["id"] or "KEY" in rule["id"] or "PASSWORD" in rule["id"]:
+        def repl(match):
+            val = match.group(0)
+            val_lower = val.lower().strip("\"'\t ")
+            if val_lower in PLACEHOLDERS or val_lower.startswith("example"):
+                return val
+            if len(val) > 4:
+                return val[:4] + "****"
+            return "****"
+
+        snippet = re.sub(r"""\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[0-9a-zA-Z]{36}|sk_live_[0-9a-zA-Z]{24,}|xox[baprs]-[0-9a-zA-Z]{10,48})\b""", repl, snippet)
+        snippet = re.sub(r"""((?:password|passwd|pwd|secret)\s*=\s*["'])([^"'\s]{6,})(["'])""",
+                         lambda m: m.group(1) + (m.group(2)[:4] + "****" if m.group(2).lower() not in PLACEHOLDERS and not m.group(2).lower().startswith("example") else m.group(2)) + m.group(3),
+                         snippet, flags=re.I)
+    return snippet
+
+def is_placeholder_secret(match, rule):
+    if rule["id"] == "GEN-SEC-HARDCODED-PASSWORD":
+        groups = match.groups()
+        if groups:
+            val = groups[0].lower().strip("\"'\t ")
+            if val in PLACEHOLDERS or val.startswith("example"):
+                return True
+    return False
+
 def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0):
     hits = []
     ext = file_path.suffix.lower()
@@ -259,7 +515,11 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
                 if len(line) > 1000:
                     continue
                 for rule in applicable_rules:
-                    if rule["regex"].search(line):
+                    m = rule["regex"].search(line)
+                    if m:
+                        if is_placeholder_secret(m, rule):
+                            continue
+                        clean_line = redact_secrets(line.strip()[:160], rule)
                         hits.append({
                             "rule_id": rule["id"],
                             "category": rule["category"],
@@ -267,7 +527,7 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
                             "location": f"{rel_path}:{line_no}",
                             "line_number": line_no,
                             "file": rel_path,
-                            "line_snippet": line.strip()[:160],
+                            "line_snippet": clean_line,
                             "explanation": rule["explanation"]
                         })
     except Exception:
@@ -348,7 +608,7 @@ def main():
     parser = argparse.ArgumentParser(description="Scan repository for candidate bug and vulnerability patterns.")
     parser.add_argument("path", nargs="?", default=".", help="Root directory or file to scan (default: .)")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
-    parser.add_argument("--category", type=str, default=None, help="Filter by category (Security, Concurrency, etc.)")
+    parser.add_argument("--category", type=str, default=None, help="Filter by category (Security, Concurrency, Secrets, etc.)")
     parser.add_argument("--min-severity", type=str, default=None, choices=["Critical", "High", "Medium", "Low", "Info"], help="Minimum severity")
     parser.add_argument("--max-hits", type=int, default=100, help="Maximum number of hits to display (default: 100)")
     args = parser.parse_args()
