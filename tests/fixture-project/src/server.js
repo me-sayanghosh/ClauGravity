@@ -6,6 +6,9 @@ const { connectDb } = require("./db");
 
 const authRoutes = require("./routes/auth");
 const orderRoutes = require("./routes/orders");
+const productRoutes = require("./routes/products");
+const adminRoutes = require("./routes/admin");
+const paymentRoutes = require("./routes/payments");
 
 const app = express();
 
@@ -25,6 +28,9 @@ const internalToken = jwt.sign(
 
 app.use("/api/auth", authRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/products", productRoutes);
+app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentRoutes);
 
 app.get("/health", (req, res) => {
   res.json({ status: "healthy", token: internalToken });
