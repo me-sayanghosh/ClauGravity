@@ -29,7 +29,8 @@ from pathlib import Path
 DEFAULT_IGNORES = {
     ".git", "node_modules", "dist", "build", ".next", "out", "coverage",
     "venv", ".venv", "__pycache__", "vendor", "target", ".idea", ".vscode",
-    ".claugravity", ".pytest_cache", ".mypy_cache", ".ruff_cache"
+    ".claugravity", ".pytest_cache", ".mypy_cache", ".ruff_cache",
+    ".DS_Store", "Thumbs.db"
 }
 
 LOCKFILES = {
