@@ -117,5 +117,47 @@ Following the evaluation of Iteration 1, general skill materials were enhanced t
 | **Citation Failures** | 0 | 0 | 0 failures | **PASS** |
 | **Final Pass Threshold** | **PASS** | **PASS** | Pass Bar Met | **PASS** |
 
+---
+
+## Mode coverage
+
+All five specialized operational modes were dry-run against `tests/fixture-project/` to validate behavioral coverage and verify that `SKILL.md` guidance is sufficient.
+
+### 1. DIFF Mode (Pull Request & Change Review)
+- **Target Scenario:** Synthetic diff modifying `src/routes/orders.js` introducing an order cancellation route.
+- **Workflow Execution:** Extracted simulated unified diff, traced upstream callers (`server.js`), checked schema consistency with `Order.js`, and evaluated test gaps.
+- **Verdict:** **Block** (Identified missing state validation allowing already-shipped orders to be refunded).
+- **Format:** Formatted according to `templates/pr-review.md`.
+- **SKILL.md Evaluation:** Guidance was comprehensive; caller tracing instructions provided clear structure.
+
+### 2. HUNT Mode (Symptom & Bug Triage)
+- **Target Symptom:** *"orders sometimes oversell stock under load"*
+- **Workflow Execution:** Formulated 3 ranked hypotheses:
+  - *Hypothesis 1 (Confidence: High):* Non-atomic read-modify-save race condition in `src/routes/orders.js:15-19`.
+  - *Hypothesis 2 (Confidence: Low):* Replica-set lag on MongoDB secondary reads.
+  - *Hypothesis 3 (Confidence: Low):* Client-side duplicate submission without idempotency key.
+- **Evidence & Disproof:** Inspected `src/routes/orders.js`; verified `product.stock -= quantity; await product.save()` allows concurrent checkouts to read the same stock value. Hypotheses 2 and 3 ruled out as primary root cause.
+- **Resolution:** Proposed atomic `$inc` update.
+- **SKILL.md Evaluation:** Ranked hypotheses approach produced fast root-cause identification.
+
+### 3. SECURITY Mode (Vulnerability Assessment)
+- **Target Scenario:** Dedicated vulnerability screening across ingress routes.
+- **Workflow Execution:** Executed `find_risk_patterns.py --category Security`, followed OWASP checklist order in `references/security-checklist.md`.
+- **Findings:** Successfully isolated Critical/High vulnerabilities (Admin purge auth bypass, NoSQL login injection, IDOR, fallback JWT secret, permissive CORS) while discarding Decoys 1 and 2.
+- **SKILL.md Evaluation:** Security checklist structure effectively mapped CWE/OWASP identifiers.
+
+### 4. QUICK Mode (10-Minute Rapid Triage)
+- **Target Scenario:** Rapid pre-commit triage of repository risks.
+- **Workflow Execution:** Ran `map_repo.py` and `find_risk_patterns.py --min-severity High --max-hits 20`. Inspected top 5 highest-risk files in `src/routes/` and `src/server.js`.
+- **Output:** Delivered 4-point executive briefing highlighting top critical risks in under 2 minutes.
+- **SKILL.md Evaluation:** High-severity lead filtering provided immediate actionable signal.
+
+### 5. MODULE Mode (Targeted Subsystem Audit)
+- **Target Scope:** `src/routes/orders.js`
+- **Workflow Execution:** Scanned single module file with `find_risk_patterns.py`, traced data flow from `req.params.id` and `req.body`, inspected parent authentication middleware in `src/server.js`.
+- **Findings:** Verified all 3 module defects (Stock race, missing await on save, IDOR).
+- **SKILL.md Evaluation:** Clean boundary mapping between module logic and global middleware.
+
+
 
 
