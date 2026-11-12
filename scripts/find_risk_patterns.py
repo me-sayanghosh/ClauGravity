@@ -51,23 +51,159 @@ SEVERITY_ORDER = {
     "Info": 0
 }
 
-# Base Rule Registry
+# JavaScript / TypeScript / Node / React / MongoDB Risk Rules
 RULES = [
     {
-        "id": "SAMPLE-SEC-01",
+        "id": "JS-SEC-EVAL",
         "category": "Security",
-        "regex": re.compile(r"""\beval\s*\(""", re.I),
-        "languages": [".js", ".ts", ".py", ".php", ".rb"],
+        "regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process\.)?exec\s*\(\s*`|(?:\.exec|\.execSync)\s*\(\s*[^"'\s)]+)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
         "severity_hint": "Critical",
-        "explanation": "Use of eval() introduces immediate risk of arbitrary code execution."
+        "explanation": "Dynamic code or shell execution with variable input allows arbitrary code execution."
     },
     {
-        "id": "SAMPLE-CONC-01",
+        "id": "JS-SEC-SQL",
+        "category": "Security",
+        "regex": re.compile(r"""(?:query|execute)\s*\(\s*(?:`[^`]*\$\{[^}]+\}|["'][^"']*(?:SELECT|INSERT|UPDATE|DELETE)[^"']*["']\s*\+)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Critical",
+        "explanation": "SQL query built via string interpolation or concatenation instead of parameterization."
+    },
+    {
+        "id": "JS-SEC-NOSQL",
+        "category": "Security",
+        "regex": re.compile(r"""\.(?:find|findOne|update|updateOne|updateMany|delete|deleteOne|deleteMany)\s*\(\s*(?:req\.(?:body|query)|{[^}]*\$where)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Passing unvalidated request body/query directly to MongoDB queries or using $where."
+    },
+    {
+        "id": "JS-SEC-XSS",
+        "category": "Security",
+        "regex": re.compile(r"""(?:dangerouslySetInnerHTML|innerHTML\s*=)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Direct insertion of unescaped HTML into the DOM risks Cross-Site Scripting (XSS)."
+    },
+    {
+        "id": "JS-CONC-FOREACH-ASYNC",
         "category": "Concurrency",
         "regex": re.compile(r"""\.forEach\s*\(\s*async\b"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
-        "explanation": "Array.forEach with an async callback does not await promises, causing unmanaged concurrency."
+        "explanation": "Array.forEach with an async callback does not await promises, causing out-of-order execution."
+    },
+    {
+        "id": "JS-CONC-FLOATING-PROMISE",
+        "category": "Concurrency",
+        "regex": re.compile(r"""^\s*(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|save[A-Z][a-zA-Z0-9_]*|write[A-Z][a-zA-Z0-9_]*)\s*\([^)]*\)\s*;"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Asynchronous function called without await or .catch(), creating an unhandled floating promise."
+    },
+    {
+        "id": "JS-BUG-UNGUARDED-JSON-PARSE",
+        "category": "Correctness",
+        "regex": re.compile(r"""\bJSON\.parse\s*\(\s*(?:req\.|body|payload|data|raw|input|msg)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "JSON.parse on external input without try/catch wrapper causes uncaught exception and crash."
+    },
+    {
+        "id": "JS-BUG-LOOSE-EQUALITY",
+        "category": "Correctness",
+        "regex": re.compile(r"""(?<!=)==(?!=)|(?<!=)!=(?!=)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Low",
+        "explanation": "Loose equality (== or !=) permits unexpected type coercion; prefer strict === or !==."
+    },
+    {
+        "id": "JS-SEC-DYNAMIC-REGEX",
+        "category": "Security",
+        "regex": re.compile(r"""new\s+RegExp\s*\(\s*(?:req\.|params\.|query\.|input|pattern|val)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Instantiating RegExp with user-controlled input can enable Regular Expression Denial of Service (ReDoS)."
+    },
+    {
+        "id": "JS-SEC-CORS-PERMISSIVE",
+        "category": "Security",
+        "regex": re.compile(r"""cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Overly permissive CORS configuration allows arbitrary third-party origins to access responses."
+    },
+    {
+        "id": "JS-SEC-JWT-FLAW",
+        "category": "Security",
+        "regex": re.compile(r"""jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "JWT signed with fallback default secret or none algorithm compromises token integrity."
+    },
+    {
+        "id": "JS-BUG-EMPTY-CATCH",
+        "category": "Correctness",
+        "regex": re.compile(r"""catch\s*(?:\([^)]*\))?\s*\{\s*\}"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Empty catch block silently swallows exceptions, obscuring critical runtime errors."
+    },
+    {
+        "id": "JS-SEC-LOG-SECRETS",
+        "category": "Security",
+        "regex": re.compile(r"""(?:console\.(?:log|info|warn|error)|logger\.(?:info|debug|error))\s*\([^)]*(?:password|token|secret|apiKey|authorization)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Logging credentials or tokens risks leaking secrets into log aggregation systems."
+    },
+    {
+        "id": "JS-SEC-MATH-RANDOM-TOKEN",
+        "category": "Security",
+        "regex": re.compile(r"""(?:Math\.random\s*\(\s*\).*?(?:token|secret|password|nonce|key|session)|(?:token|secret|password|nonce|key|session).*?Math\.random\s*\(\s*\))"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Math.random() is pseudo-random and predictable; use crypto.randomBytes() for tokens."
+    },
+    {
+        "id": "JS-DATA-UNBOUNDED-FIND",
+        "category": "Data/API",
+        "regex": re.compile(r"""\.(?:find|findAll)\s*\(\s*(?:\{\s*\}|\s*)\)(?!\s*\.(?:limit|count|select\(["']_id))"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Database find() without explicit limit risks high memory consumption on large collections."
+    },
+    {
+        "id": "JS-SEC-TLS-DISABLED",
+        "category": "Security",
+        "regex": re.compile(r"""rejectUnauthorized\s*:\s*false"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Disabling TLS certificate validation exposes connections to Man-In-The-Middle (MITM) attacks."
+    },
+    {
+        "id": "JS-SEC-PATH-TRAVERSAL",
+        "category": "Security",
+        "regex": re.compile(r"""(?:res\.sendFile|fs\.(?:readFile|createReadStream))\s*\([^)]*(?:req\.|params\.|query\.)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Filesystem operation with user-supplied parameter risks directory path traversal."
+    },
+    {
+        "id": "JS-REACT-STALE-CLOSURE",
+        "category": "Correctness",
+        "regex": re.compile(r"""useEffect\s*\(.*?,\s*\[\s*\]\)"""),
+        "languages": [".jsx", ".tsx", ".js", ".ts"],
+        "severity_hint": "Low",
+        "explanation": "Empty dependency array in useEffect referencing props/state can create stale closures."
+    },
+    {
+        "id": "JS-SEC-CLIENT-SECRET-LEAK",
+        "category": "Secrets",
+        "regex": re.compile(r"""(?:NEXT_PUBLIC_|VITE_)[A-Z0-9_]*(?:SECRET|PRIVATE_KEY|PASSWORD)\s*="""),
+        "languages": [".env", ".env.local", ".env.production", ".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Critical",
+        "explanation": "Exposing secret keys or passwords via frontend environment prefixes leaks credentials to clients."
     }
 ]
 
@@ -108,7 +244,7 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
     ext = file_path.suffix.lower()
     applicable_rules = [
         r for r in rules
-        if (not r.get("languages") or ext in r["languages"])
+        if (not r.get("languages") or ext in r["languages"] or file_path.name.startswith(".env"))
         and (not category_filter or r["category"].lower() == category_filter.lower())
         and SEVERITY_ORDER.get(r["severity_hint"], 0) >= min_sev_score
     ]
