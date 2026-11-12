@@ -95,3 +95,140 @@ ClauGravity/
         ├── src/                      # Express, Mongoose & auth handlers
         └── client/                   # React frontend components
 ```
+
+---
+
+## Installation
+
+ClauGravity operates as a standard Agent Skill. Install it into individual workspaces or globally across your environment.
+
+### Workspace Installation (Per Project)
+Run this command from your target project root:
+```bash
+git clone https://github.com/me-sayanghosh/ClauGravity.git .agents/skills/claugravity
+```
+*Note:* The destination folder must be lowercase `claugravity`, matching the skill name defined in `SKILL.md`. The legacy path `.agent/skills/claugravity` is also supported.
+
+### Global Installation (User-Wide)
+To make ClauGravity available across all workspaces on your workstation:
+```bash
+git clone https://github.com/me-sayanghosh/ClauGravity.git ~/.gemini/config/skills/claugravity
+```
+
+---
+
+## Example Usage Prompts
+
+Invoke ClauGravity directly within conversational agent sessions:
+- **Full Audit:** *"Use ClauGravity to audit this repo."*
+- **Pull Request Review:** *"Use ClauGravity to review my uncommitted changes against main."*
+- **Symptom Hunting:** *"ClauGravity: why does /checkout intermittently return 500 under load?"*
+- **Targeted Security Audit:** *"ClauGravity security review of the auth module."*
+- **Fast Assessment:** *"ClauGravity quick triage."*
+
+---
+
+## Script Reference
+
+All scripts in `scripts/` are standalone Python 3.8+ utilities using standard library only:
+
+### 1. `scripts/map_repo.py`
+Analyzes directory structure, entry points, and routes without loading full file bodies into LLM context:
+```bash
+python scripts/map_repo.py [path] [--max-depth 6] [--json]
+```
+
+### 2. `scripts/find_risk_patterns.py`
+Heuristic pattern scanner detecting security risks, concurrency hazards, and code defects:
+```bash
+python scripts/find_risk_patterns.py [path] [--category CATEGORY] [--min-severity SEV] [--max-hits 100] [--json]
+```
+
+### 3. `scripts/run_checks.py`
+Safely detects and executes locally installed linters, type-checkers, and production audits:
+```bash
+python scripts/run_checks.py [path] [--timeout 30] [--allow-tests] [--json]
+```
+
+### 4. `scripts/chunk_plan.py`
+Partitions large codebases (>50k LOC) into risk-ranked review modules:
+```bash
+python scripts/chunk_plan.py [path] [--max-chunks 8] [--json]
+```
+
+### 5. `scripts/verify_citations.py`
+Mechanically validates that all cited code locations and verbatim excerpts match real project code:
+```bash
+python scripts/verify_citations.py <report.md> --root [path]
+```
+
+---
+
+## Sample Finding Excerpt
+
+```markdown
+### CG-001: Admin User Purge Route Completely Unauthenticated
+
+**Status:** Confirmed  
+**Severity:** Critical  
+**Confidence:** High  
+**Category:** Broken Access Control  
+**Location:** `src/routes/admin.js:8-14`  
+**CWE/OWASP:** CWE-306 / OWASP A01:2021-Broken Access Control  
+
+**Evidence:**
+\`\`\`javascript
+router.delete("/users/:id/purge", async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    await Order.deleteMany({ userId: req.params.id });
+    res.json({ success: true, message: "User account and history purged" });
+  } catch (err) {
+    res.status(500).json({ error: "Purge failed" });
+\`\`\`
+
+#### Root Cause
+The administrative deletion route is mounted without `requireAuth` or `requireAdmin` middleware guards.
+```
+
+---
+
+## Empirical Self-Test Metrics (RESULTS.md)
+
+ClauGravity is validated against the bundled fixture project (`tests/fixture-project/`), which contains 12 intentionally planted defects and 3 deceptive decoys:
+
+| Metric | Iteration 1 | Iteration 2 | Target Threshold | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **Planted Defects Detected** | 12 of 12 (100%) | 12 of 12 (100%) | >= 10 of 12 | **PASS** |
+| **Missed Planted Defects** | 0 | 0 | <= 2 misses | **PASS** |
+| **Decoys Wrongly Confirmed** | 0 | 0 | 0 confirmed | **PASS** |
+| **Citation Verification Failures** | 0 | 0 | 0 failures | **PASS** |
+| **Iterations to Meet Pass Bar** | 1 | 2 | 1–4 iterations | **PASS** |
+| **Audit Blindness Disclosure** | Disclosed (Not Blind) | Disclosed (Not Blind) | Transparent | **PASS** |
+
+---
+
+## Extending ClauGravity
+
+### Adding New Risk Patterns
+Add a rule dictionary to `RULES` in `scripts/find_risk_patterns.py` with `id`, `category`, `regex`, `languages`, `severity_hint`, and `explanation`. Standard library only; always accompany with a test case in `tests/fixture-project/`.
+
+### Custom Ignore Rules
+Place a `.claugravityignore` file in your project root containing gitignore-style glob patterns to exclude non-production code, generated files, or fixtures from scans.
+
+---
+
+## Known Caveats and Limitations
+
+- **Aid, Not a Guarantee:** ClauGravity is an automated analytical aid. It can miss novel vulnerability chains or misunderstand complex domain requirements. Always verify findings before deploying code changes.
+- **Leads vs. Confirmed Bugs:** Pattern matches from `find_risk_patterns.py` are candidate leads; they must pass the Phase 4 Disprove Pass before promotion to findings.
+- **Fixture Project Safety:** The bundled project at `tests/fixture-project/` contains intentionally vulnerable code designed for validation. It must **never** be deployed to production or public networks.
+
+---
+
+## License & Disclaimers
+
+ClauGravity is released under the [MIT License](LICENSE).
+
+**Independent Project Disclaimer:** ClauGravity is an independent open-source project and is not affiliated with, sponsored by, or endorsed by Google LLC or Anthropic PBC.
+
