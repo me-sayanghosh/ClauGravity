@@ -159,7 +159,7 @@ python scripts/chunk_plan.py [path] [--max-chunks 8] [--json]
 ### 5. `scripts/verify_citations.py`
 Mechanically validates that all cited code locations and verbatim excerpts match real project code:
 ```bash
-python scripts/verify_citations.py <report.md> --root [path]
+python scripts/verify_citations.py <report.md> [--root PATH] [--tolerance 5] [--json]
 ```
 
 ---

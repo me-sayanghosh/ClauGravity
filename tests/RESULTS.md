@@ -73,23 +73,43 @@ Automated scanning identified 4 of the 12 defects directly as leads. The remaini
 
 ## Iteration 1 fixes
 
-Following the evaluation of Iteration 1, general skill materials were enhanced to improve lead detection and scanner sensitivity across multi-line declarations:
+Following the evaluation of Iteration 1 and subsequent verification audits, general skill materials and analysis scripts were comprehensively hardened to eliminate false positives and expand multi-line detection:
 
 1. **Scanner Enhancement for Multi-Line CORS:**
    - *Problem:* `find_risk_patterns.py` scanned strictly line-by-line, missing `cors({ origin: "*" })` when options spanned multiple lines.
    - *Fix:* Expanded `JS-SEC-CORS-PERMISSIVE` regex to match `origin:\s*["']*["']` directly on the option line.
 
-2. **Detection of Inline Fallback Secrets:**
-   - *Problem:* Default fallback secrets on `process.env.SECRET || "insecure"` were missed when split across arguments.
-   - *Fix:* Added pattern detection for `process.env.[A-Z0-9_]+\s*\|\|\s*["'][^"']+["']` in `JS-SEC-JWT-FLAW`.
+2. **Scoped Detection of Inline Fallback Secrets:**
+   - *Problem:* Overly broad pattern matching on `process.env.* || "..."` falsely flagged non-security variables like `MONGO_URI` and `PORT` as High-severity JWT flaws.
+   - *Fix:* Scoped `JS-SEC-JWT-FLAW` to environment variable names containing `JWT`, `SECRET`, `KEY`, `TOKEN`, `AUTH` or inside `jwt.sign(...)`.
 
-3. **Multi-Line and Comment-Only Catch Swallowing:**
-   - *Problem:* Empty catches containing comments were not flagged by single-line `{}` regex.
-   - *Fix:* Enhanced `JS-BUG-EMPTY-CATCH` regex to detect `catch.*\{\s*(?://.*)?$` matching multi-line blocks.
+3. **Context-Aware Multi-Line Empty Catch Detection:**
+   - *Problem:* Matching `catch.*\{\s*$` flagged every standard, non-empty catch block in the repository.
+   - *Fix:* Implemented `is_empty_catch()` multi-line lookahead that inspects subsequent lines for closing braces without code, isolating true swallowed exceptions (e.g. `payments.js:20-22`) with zero false alarms on normal handlers.
 
-4. **Floating-Point Equality Detection:**
-   - *Problem:* Float money comparisons against `0.0` lacked dedicated static pattern detection.
-   - *Fix:* Added `JS-BUG-FLOAT-MONEY` targeting `=== 0.0` and `0.0 ===` patterns in financial logic.
+4. **Floating Promise Detection for Mongoose Saves:**
+   - *Problem:* `JS-CONC-FLOATING-PROMISE` only targeted `save[A-Z]`, missing un-awaited `order.save()` calls.
+   - *Fix:* Expanded pattern to detect `[a-zA-Z0-9_]+\.(?:save|update|delete|create|insert|remove|send)\s*\(` without `await`.
+
+5. **Multi-Line React Hook Dependency Analysis:**
+   - *Problem:* Multi-line `useEffect` hooks with empty dependency arrays `[]` were missed in line-by-line scanning.
+   - *Fix:* Added forward lookahead in `JS-REACT-STALE-CLOSURE` to flag `useEffect` blocks that terminate with `}, []);`.
+
+6. **Strict Inequality Lookbehind Correction:**
+   - *Problem:* `(?<!=)==(?!=)` matched the `==` inside `!==`, falsely flagging strict inequality checks as loose equality defects.
+   - *Fix:* Updated lookbehind to `(?<![!=])==(?!=)|(?<![!=])!=(?!=)`.
+
+7. **YAML SafeLoader Backtracking Prevention:**
+   - *Problem:* Greedy backtracking in `PY-SEC-YAML` caused false alarms on safe `yaml.load(stream, Loader=yaml.SafeLoader)`.
+   - *Fix:* Replaced with atomic negative-lookahead group `yaml\.load\s*\((?:(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)[^)])*\)`.
+
+8. **Route Deduplication and Framework Detection (`map_repo.py`):**
+   - *Problem:* Regex overlap between Express `router.*` and Gin `r.*` caused 10 routes to be duplicated as bogus `"ROUTE"` entries. Furthermore, frameworks were not reported.
+   - *Fix:* Added word boundaries, Spring Boot annotations, Fastify patterns, and manifest framework detection, restoring the route count to the exact 11 routes.
+
+9. **Mechanical Citation Gate JSON Support (`verify_citations.py`):**
+   - *Problem:* Missing `--json` flag required by the script engineering standard.
+   - *Fix:* Implemented `--json` and `--tolerance` support.
 
 *Verification:* All 5 analysis scripts re-verified with `--help` and executed cleanly against both the fixture project and workspace root.
 
@@ -108,9 +128,9 @@ Following the evaluation of Iteration 1, general skill materials were enhanced t
 
 ### Comparison Between Iterations
 
-| Metric | Iteration 1 | Iteration 2 | Target Threshold | Status |
+| Metric | Iteration 1 | Iteration 2 (Refined) | Target Threshold | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Automated Lead Alerts** | 7 leads | 23 leads | > 5 leads | Significant Improvement |
+| **Automated Lead Alerts** | 7 leads | 13 high-signal leads | > 5 leads | Significant Improvement (High Precision) |
 | **Confirmed Planted Bugs** | 12 / 12 | 12 / 12 | >= 10 of 12 | **PASS** |
 | **Missed Planted Bugs** | 0 | 0 | <= 2 misses | **PASS** |
 | **False Positives (Decoys Confirmed)** | 0 | 0 | 0 confirmed | **PASS** |

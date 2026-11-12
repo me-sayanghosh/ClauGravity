@@ -128,7 +128,7 @@ Treat all scripts as black-box utilities. Invoke with `--help` for syntax; do no
 - **Lead Scanner**: `python scripts/find_risk_patterns.py [path] [--category X] [--min-severity High] [--json]`
 - **Native Check Runner**: `python scripts/run_checks.py [path] [--allow-tests] [--json]`
 - **Chunk Planner**: `python scripts/chunk_plan.py [path] [--max-chunks N] [--json]`
-- **Citation Gate**: `python scripts/verify_citations.py <report.md> --root [path]`
+- **Citation Gate**: `python scripts/verify_citations.py <report.md> --root [path] [--json]`
 
 ---
 
