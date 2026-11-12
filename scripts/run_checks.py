@@ -111,22 +111,30 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
         elif is_tool_available("npm"):
             results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", "status": "skipped: no lockfile", "exit_code": 0, "output": "Skipped: npm audit requires an existing package-lock.json."})
 
-    if tsconfig.is_file() and is_tool_available("tsc"):
-        res = run_cmd(["tsc", "--noEmit"], cwd=root, timeout=timeout)
-        results.append({"name": "tsc --noEmit", "tool": "tsc", "category": "Typechecker", **res})
+    if tsconfig.is_file():
+        if is_tool_available("tsc"):
+            res = run_cmd(["tsc", "--noEmit"], cwd=root, timeout=timeout)
+            results.append({"name": "tsc --noEmit", "tool": "tsc", "category": "Typechecker", **res})
+        else:
+            results.append({"name": "tsc --noEmit", "tool": "tsc", "category": "Typechecker", "status": "skipped: not installed", "exit_code": 0, "output": ""})
 
     # 2. Python Checks
     pyproject = root / "pyproject.toml"
     setup_py = root / "setup.py"
     setup_cfg = root / "setup.cfg"
     req_txt = root / "requirements.txt"
+    pipfile = root / "Pipfile"
+    req_dir = root / "requirements"
     has_python = (
         pyproject.is_file()
         or setup_py.is_file()
         or setup_cfg.is_file()
         or req_txt.is_file()
+        or pipfile.is_file()
+        or (req_dir.is_dir() and any(req_dir.glob("*.txt")))
         or any(root.glob("*.py"))
         or any(root.glob("*/*.py"))
+        or any(root.glob("*/*/*.py"))
     )
 
     if has_python:
@@ -147,9 +155,12 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
             res = run_cmd(["pip-audit"], cwd=root, timeout=timeout)
             results.append({"name": "pip-audit", "tool": "pip-audit", "category": "Security", **res})
 
-        if allow_tests and is_tool_available("pytest"):
-            res = run_cmd(["pytest", "-q"], cwd=root, timeout=timeout)
-            results.append({"name": "pytest", "tool": "pytest", "category": "Tests", **res})
+        if is_tool_available("pytest"):
+            if allow_tests:
+                res = run_cmd(["pytest", "-q"], cwd=root, timeout=timeout)
+                results.append({"name": "pytest", "tool": "pytest", "category": "Tests", **res})
+            else:
+                results.append({"name": "pytest", "tool": "pytest", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Tests available; rerun with --allow-tests to execute."})
 
     # 3. Go Checks
     if (root / "go.mod").is_file():

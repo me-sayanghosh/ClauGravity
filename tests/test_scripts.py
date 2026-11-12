@@ -100,6 +100,50 @@ const b = 2;
         self.assertEqual(findings[0]["raw_location"], "test.js:1-2")
         self.assertIn("const a = 1;", findings[0]["evidence"])
 
+    def test_location_in_markdown_link(self):
+        report_text = """### [CG-002]: Link Test
+
+**Location:** [src/routes/orders.js:13-20](src/routes/orders.js)
+
+**Evidence:**
+```js
+order.save();
+```
+"""
+        findings = verify_citations.parse_findings(report_text)
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["raw_location"], "src/routes/orders.js:13-20")
+
+    def test_location_with_spaces_in_range(self):
+        file_p, start, end = verify_citations.parse_location("src/server.js: 10 - 20 ")
+        self.assertEqual(file_p, "src/server.js")
+        self.assertEqual(start, 10)
+        self.assertEqual(end, 20)
+
+    def test_heading_level_two_and_four(self):
+        report_text = """## [CG-001]: Level Two Finding
+
+**Location:** `test.js:1`
+
+**Evidence:**
+```js
+console.log("hi");
+```
+
+#### [CG-002]: Level Four Finding
+
+**Location:** `test.js:2`
+
+**Evidence:**
+```js
+console.log("bye");
+```
+"""
+        findings = verify_citations.parse_findings(report_text)
+        self.assertEqual(len(findings), 2)
+        self.assertEqual(findings[0]["title"], "[CG-001]: Level Two Finding")
+        self.assertEqual(findings[1]["title"], "[CG-002]: Level Four Finding")
+
 
 class TestMapRepo(unittest.TestCase):
     def setUp(self):
@@ -140,6 +184,38 @@ class TestMapRepo(unittest.TestCase):
         self.assertEqual(len(data["routes"]), 1)
         self.assertEqual(data["routes"][0]["path"], "/api/items")
         self.assertEqual(data["routes"][0]["method"], "GET")
+
+    def test_circleci_and_bitbucket_detection(self):
+        circle_dir = self.root / ".circleci"
+        circle_dir.mkdir(parents=True)
+        (circle_dir / "config.yml").write_text("version: 2.1\n", encoding="utf-8")
+        (self.root / "bitbucket-pipelines.yml").write_text("pipelines:\n", encoding="utf-8")
+
+        data = map_repo.analyze_repo(self.root)
+        self.assertIn(".circleci/config.yml", data["ci_docker"])
+        self.assertIn("bitbucket-pipelines.yml", data["ci_docker"])
+
+    def test_pipfile_and_setup_manifest_detection(self):
+        (self.root / "Pipfile").write_text("[packages]\ndjango = '*'\n", encoding="utf-8")
+        (self.root / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
+
+        data = map_repo.analyze_repo(self.root)
+        self.assertIn("Pipfile", data["manifests"])
+        self.assertIn("setup.py", data["manifests"])
+        self.assertIn("Django", data["frameworks"])
+
+    def test_fastify_and_svelte_framework_detection(self):
+        pkg = self.root / "package.json"
+        pkg.write_text(json.dumps({
+            "dependencies": {
+                "@fastify/cors": "^8.0.0",
+                "@sveltejs/kit": "^1.0.0"
+            }
+        }), encoding="utf-8")
+
+        data = map_repo.analyze_repo(self.root)
+        self.assertIn("Fastify", data["frameworks"])
+        self.assertIn("Svelte", data["frameworks"])
 
 
 class TestFindRiskPatterns(unittest.TestCase):
@@ -221,6 +297,108 @@ class TestFindRiskPatterns(unittest.TestCase):
         self.assertIn("GEN-SEC-HARDCODED-PASSWORD", rule_ids)
         self.assertIn("supe****", hits[0]["line_snippet"])
 
+    def test_single_file_scan_preserves_relative_path(self):
+        sub = self.root / "src" / "controllers"
+        sub.mkdir(parents=True)
+        target = sub / "auth.js"
+        target.write_text("const u = await User.findOne(req.body);\n", encoding="utf-8")
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(self.root)
+            res = find_risk_patterns.run_scan("src/controllers/auth.js", find_risk_patterns.RULES)
+            self.assertEqual(len(res["hits"]), 1)
+            self.assertTrue(res["hits"][0]["location"].startswith("src/controllers/auth.js"))
+        finally:
+            os.chdir(orig_cwd)
+
+    def test_real_token_containing_test_substring_not_dropped(self):
+        test_file = self.root / "keys.py"
+        test_file.write_text("token = 'ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZtest123456'\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("GEN-SEC-GITHUB-TOKEN", rule_ids)
+
+    def test_empty_catch_block_comment_multi_line(self):
+        test_file = self.root / "multi_swallow.js"
+        test_file.write_text("try { run(); } catch (err) { /* ignore */\n}\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("JS-BUG-EMPTY-CATCH", rule_ids)
+
+    def test_client_secret_leak_with_suffixes(self):
+        test_file = self.root / ".env"
+        test_file.write_text("NEXT_PUBLIC_STRIPE_SECRET_KEY=sk_live_12345\nVITE_ADMIN_PASSWORD_HASH=secret123\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertEqual(rule_ids.count("JS-SEC-CLIENT-SECRET-LEAK"), 2)
+
+    def test_unguarded_route_standard_function(self):
+        test_file = self.root / "api.js"
+        test_file.write_text("router.post('/submit', function(req, res) {});\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("JS-SEC-UNGUARDED-ROUTE", rule_ids)
+
+    def test_floating_promise_with_nested_call(self):
+        test_file = self.root / "save.js"
+        test_file.write_text("    order.save({ session: getSession() });\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("JS-CONC-FLOATING-PROMISE", rule_ids)
+
+    def test_logger_warn_secrets(self):
+        test_file = self.root / "log.js"
+        test_file.write_text("logger.warn('User password attempt failed:', pwd);\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("JS-SEC-LOG-SECRETS", rule_ids)
+
+    def test_python_debug_lowercase(self):
+        test_file = self.root / "app.py"
+        test_file.write_text("app.run(debug=True)\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("PY-SEC-DEBUG-TRUE", rule_ids)
+
+    def test_python_subprocess_nested_parens(self):
+        test_file = self.root / "runner.py"
+        test_file.write_text("subprocess.run(get_cmd(), shell=True)\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("PY-SEC-SUBPROCESS-SHELL", rule_ids)
+
+    def test_go_ignored_error_single_assignment(self):
+        test_file = self.root / "main.go"
+        test_file.write_text("    _ = json.Unmarshal(data, &v)\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("GO-BUG-IGNORED-ERROR", rule_ids)
+
+    def test_go_exec_command_context(self):
+        test_file = self.root / "cmd.go"
+        test_file.write_text("cmd := exec.CommandContext(ctx, req.URL.Path)\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("GO-SEC-EXEC-CMD", rule_ids)
+
+    def test_java_sql_execute(self):
+        test_file = self.root / "Dao.java"
+        test_file.write_text("stmt.execute(\"DELETE FROM \" + table);\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("JAVA-SEC-SQL-CONCAT", rule_ids)
+
+    def test_generic_weak_hash_java_and_go(self):
+        test_java = self.root / "Hash.java"
+        test_java.write_text("MessageDigest md = MessageDigest.getInstance(\"MD5\");\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_java, self.root, find_risk_patterns.RULES)
+        self.assertIn("GEN-SEC-WEAK-HASH", [h["rule_id"] for h in hits])
+
+        test_go = self.root / "hash.go"
+        test_go.write_text("h := md5.New()\n", encoding="utf-8")
+        hits_go = find_risk_patterns.scan_file(test_go, self.root, find_risk_patterns.RULES)
+        self.assertIn("GEN-SEC-WEAK-HASH", [h["rule_id"] for h in hits_go])
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):
@@ -240,6 +418,12 @@ class TestRunChecks(unittest.TestCase):
         self.assertTrue(len(audit_checks) > 0)
         self.assertEqual(audit_checks[0]["status"], "skipped: no lockfile")
         self.assertEqual(report["failed"], 0)
+
+    def test_pipfile_triggers_python_checks(self):
+        (self.root / "Pipfile").write_text("[packages]\n", encoding="utf-8")
+        report = run_checks.execute_checks(self.root)
+        linter_checks = [c for c in report["checks"] if "linter" in c["name"].lower() or "ruff" in c["name"].lower() or "flake8" in c["name"].lower()]
+        self.assertTrue(len(linter_checks) > 0)
 
 
 class TestChunkPlan(unittest.TestCase):

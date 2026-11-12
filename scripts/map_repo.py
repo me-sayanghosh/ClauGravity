@@ -71,9 +71,9 @@ def detect_frameworks(root, manifests):
             content = mpath.read_text(encoding="utf-8", errors="ignore").lower()
             if m.endswith("package.json"):
                 for fw in ["express", "react", "next", "vue", "fastify", "nestjs", "koa", "angular", "svelte"]:
-                    if f'"{fw}"' in content or (fw == "nestjs" and "@nestjs/" in content) or (fw == "angular" and "@angular/" in content):
+                    if f'"{fw}"' in content or (fw == "nestjs" and "@nestjs/" in content) or (fw == "angular" and "@angular/" in content) or (fw == "fastify" and "@fastify/" in content) or (fw == "svelte" and "@sveltejs/" in content):
                         frameworks.add(fw.capitalize() if fw != "next" else "Next.js")
-            elif m.endswith((".txt", ".toml")):
+            elif m.endswith((".txt", ".toml", ".py", ".cfg", "Pipfile")):
                 for fw in ["django", "flask", "fastapi", "tornado", "pyramid"]:
                     if fw in content:
                         frameworks.add(fw.capitalize() if fw != "fastapi" else "FastAPI")
@@ -198,7 +198,7 @@ def analyze_repo(target_path, max_depth=6):
                 lang = EXT_LANG_MAP[ext]
                 lang_counts[lang] = lang_counts.get(lang, 0) + lines
 
-            if fname in {"package.json", "pyproject.toml", "requirements.txt", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "Cargo.toml", "Gemfile"}:
+            if fname in {"package.json", "pyproject.toml", "requirements.txt", "Pipfile", "setup.py", "setup.cfg", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "Cargo.toml", "Gemfile"}:
                 manifests.append(rel_str)
 
             if fname.startswith(".env") or fname.endswith("config.js") or fname.endswith("config.ts") or fname.endswith("config.py") or fname.endswith("settings.py"):
@@ -207,8 +207,9 @@ def analyze_repo(target_path, max_depth=6):
             if ("docker" in fname.lower()
                 or rel_str.startswith(".github")
                 or rel_str.startswith(".gitlab")
+                or rel_str.startswith(".circleci")
                 or fname.startswith("jenkins")
-                or fname in {".travis.yml", "azure-pipelines.yml"}
+                or fname in {".travis.yml", "azure-pipelines.yml", "bitbucket-pipelines.yml"}
                 or "-ci." in fname.lower()
                 or "_ci." in fname.lower()
                 or fname.endswith(".ci.yml")

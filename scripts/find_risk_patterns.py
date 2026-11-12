@@ -63,7 +63,7 @@ RULES = [
     {
         "id": "JS-SEC-EVAL",
         "category": "Security",
-        "regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process|cp)\.(?:exec|execSync)\s*\(|\bexecSync\s*\(|(?<!\.)\bexec\s*\(\s*`|(?<!\.)\bexec\s*\(\s*[^"'\`\s)]+)"""),
+        "regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process|cp)\.(?:exec|execSync)\s*\(|\bexecSync\s*\(|(?<!\.)\bexec\s*\(\s*`|(?<!\.)\bexec\s*\(\s*(?:["'][^"']*["']\s*\+|[^"'\`\s)]+))"""),
         "languages": [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
         "severity_hint": "Critical",
         "explanation": "Dynamic code or shell execution with variable input allows arbitrary code execution."
@@ -79,7 +79,7 @@ RULES = [
     {
         "id": "JS-SEC-NOSQL",
         "category": "Security",
-        "regex": re.compile(r"""\.(?:find|findOne|update|updateOne|updateMany|delete|deleteOne|deleteMany)\s*\(\s*(?:\{?\s*\.{3}\s*req\.(?:body|query)|req\.(?:body|query)|{[^}]*\$where)"""),
+        "regex": re.compile(r"""\.(?:find|findOne|findOneAndUpdate|findOneAndDelete|findOneAndReplace|countDocuments|update|updateOne|updateMany|delete|deleteOne|deleteMany)\s*\(\s*(?:\{?\s*\.{3}\s*req\.(?:body|query)|req\.(?:body|query)|{[^}]*\$where)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "Passing unvalidated request body/query directly to MongoDB queries or using $where."
@@ -103,7 +103,7 @@ RULES = [
     {
         "id": "JS-CONC-FLOATING-PROMISE",
         "category": "Concurrency",
-        "regex": re.compile(r"""^\s*(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|[a-zA-Z0-9_]+\.(?:save|update|delete|create|insert|remove|send)|save[a-zA-Z0-9_]*|write[a-zA-Z0-9_]*)\s*\([^)]*\)\s*;?\s*(?://.*)?$"""),
+        "regex": re.compile(r"""^\s*(?!(?:app|router)\.)(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|[a-zA-Z0-9_]+\.(?:save|update|delete|create|insert|remove|send)|save[a-zA-Z0-9_]*|write[a-zA-Z0-9_]*)\s*(?![^;\n]*\.(?:then|catch|finally))\([^;\n]*\)\s*;?\s*(?://[^\n]*)?$"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Asynchronous function called without await or .catch(), creating an unhandled floating promise."
@@ -111,7 +111,7 @@ RULES = [
     {
         "id": "JS-BUG-UNGUARDED-JSON-PARSE",
         "category": "Correctness",
-        "regex": re.compile(r"""\bJSON\.parse\s*\(\s*(?:req\.|body|payload|data|raw|input|msg)"""),
+        "regex": re.compile(r"""\bJSON\.parse\s*\(\s*(?:req\.|request\.|event\.|body|payload|data|raw|input|msg|content|text)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "JSON.parse on external input without try/catch wrapper causes uncaught exception and crash."
@@ -135,7 +135,7 @@ RULES = [
     {
         "id": "JS-SEC-CORS-PERMISSIVE",
         "category": "Security",
-        "regex": re.compile(r"""(?:cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)|origin\s*:\s*["']\*["'])"""),
+        "regex": re.compile(r"""(?:cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)|origin\s*:\s*["']\*["']|Access-Control-Allow-Origin['"]?\s*,\s*['"]\*)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Overly permissive CORS configuration allows arbitrary third-party origins to access responses."
@@ -143,7 +143,7 @@ RULES = [
     {
         "id": "JS-SEC-JWT-FLAW",
         "category": "Security",
-        "regex": re.compile(r"""(?:jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.(?:[A-Z0-9_]*(?:JWT|SECRET|KEY|TOKEN|AUTH)[A-Z0-9_]*)\s*\|\|\s*["'][^"']*["'])"""),
+        "regex": re.compile(r"""(?:jwt\.(?:sign|verify)\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.(?:[A-Z0-9_]*(?:JWT|SECRET|KEY|TOKEN|AUTH)[A-Z0-9_]*)\s*\|\|\s*["'][^"']*["'])"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "JWT signed with fallback default secret or insecure default value in source."
@@ -167,7 +167,7 @@ RULES = [
     {
         "id": "JS-SEC-LOG-SECRETS",
         "category": "Security",
-        "regex": re.compile(r"""(?:console\.(?:log|info|warn|error)|logger\.(?:info|debug|error))\s*\([^)]*(?:password|token|secret|apiKey|authorization)"""),
+        "regex": re.compile(r"""(?:console\.(?:log|info|warn|error)|logger\.(?:info|debug|warn|error|fatal|trace|log))\s*\([^\n;]*(?:password|token|secret|apiKey|authorization|auth)""", re.I),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Logging credentials or tokens risks leaking secrets into log aggregation systems."
@@ -175,7 +175,7 @@ RULES = [
     {
         "id": "JS-SEC-MATH-RANDOM-TOKEN",
         "category": "Security",
-        "regex": re.compile(r"""(?:Math\.random\s*\(\s*\).*?(?:token|secret|password|nonce|key|session)|(?:token|secret|password|nonce|key|session).*?Math\.random\s*\(\s*\))""", re.I),
+        "regex": re.compile(r"""(?:Math\.random\s*\(\s*\).*?(?:token|secret|password|nonce|key|session|uuid|\bid\b)|(?:token|secret|password|nonce|key|session|uuid|\bid\b).*?Math\.random\s*\(\s*\))""", re.I),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "Math.random() is pseudo-random and predictable; use crypto.randomBytes() for tokens."
@@ -191,7 +191,7 @@ RULES = [
     {
         "id": "JS-SEC-TLS-DISABLED",
         "category": "Security",
-        "regex": re.compile(r"""rejectUnauthorized\s*:\s*false"""),
+        "regex": re.compile(r"""(?:rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "Disabling TLS certificate validation exposes connections to Man-In-The-Middle (MITM) attacks."
@@ -199,7 +199,7 @@ RULES = [
     {
         "id": "JS-SEC-PATH-TRAVERSAL",
         "category": "Security",
-        "regex": re.compile(r"""(?:res\.sendFile|fs\.(?:readFile|createReadStream))\s*\([^)]*(?:req\.|params\.|query\.)"""),
+        "regex": re.compile(r"""(?:res\.sendFile|fs(?:\.promises)?\.(?:readFile|readFileSync|createReadStream|writeFile|writeFileSync))\s*\([^\n;]*(?:req\.|params\.|query\.)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "Filesystem operation with user-supplied parameter risks directory path traversal."
@@ -215,7 +215,7 @@ RULES = [
     {
         "id": "JS-SEC-CLIENT-SECRET-LEAK",
         "category": "Secrets",
-        "regex": re.compile(r"""(?:NEXT_PUBLIC_|VITE_)[A-Z0-9_]*(?:SECRET|PRIVATE_KEY|PASSWORD)\s*="""),
+        "regex": re.compile(r"""(?:NEXT_PUBLIC_|VITE_)[A-Z0-9_]*(?:SECRET|PRIVATE_KEY|PASSWORD|TOKEN|AUTH_KEY)[A-Z0-9_]*\s*=""", re.I),
         "languages": [".env", ".env.local", ".env.production", ".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Critical",
         "explanation": "Exposing secret keys or passwords via frontend environment prefixes leaks credentials to clients."
@@ -223,7 +223,7 @@ RULES = [
     {
         "id": "JS-SEC-UNGUARDED-ROUTE",
         "category": "Security",
-        "regex": re.compile(r"""(?:app|router)\.(?:post|put|delete|patch)\s*\(\s*["'`][^"'`]+["'`]\s*,\s*async\s*\("""),
+        "regex": re.compile(r"""(?:app|router)\.(?:post|put|delete|patch)\s*\(\s*["'`][^"'`]+["'`]\s*,\s*(?:async\s+)?(?:function\s*\(|\([^)]*\)\s*=>)"""),
         "languages": [".js", ".ts"],
         "severity_hint": "Medium",
         "explanation": "State-changing HTTP route registered directly with async handler without inline auth middleware."
@@ -241,7 +241,7 @@ RULES = [
     {
         "id": "PY-SEC-PICKLE",
         "category": "Security",
-        "regex": re.compile(r"""\bpickle\.loads?\s*\("""),
+        "regex": re.compile(r"""\b(?:pickle|_pickle|cPickle)\.loads?\s*\("""),
         "languages": [".py"],
         "severity_hint": "Critical",
         "explanation": "Unpickling untrusted data leads directly to remote code execution."
@@ -249,7 +249,7 @@ RULES = [
     {
         "id": "PY-SEC-YAML",
         "category": "Security",
-        "regex": re.compile(r"""yaml\.load\s*\((?:(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)[^)])*\)"""),
+        "regex": re.compile(r"""(?:yaml\.load\s*\((?:(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)[^)])*\)|yaml\.unsafe_load\s*\()"""),
         "languages": [".py"],
         "severity_hint": "High",
         "explanation": "Calling yaml.load() without SafeLoader allows arbitrary Python object instantiation."
@@ -257,7 +257,7 @@ RULES = [
     {
         "id": "PY-SEC-SUBPROCESS-SHELL",
         "category": "Security",
-        "regex": re.compile(r"""subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^)]*shell\s*=\s*True"""),
+        "regex": re.compile(r"""subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^\n]*\bshell\s*=\s*True"""),
         "languages": [".py"],
         "severity_hint": "High",
         "explanation": "Executing subprocess with shell=True permits command injection via unescaped shell metacharacters."
@@ -265,7 +265,7 @@ RULES = [
     {
         "id": "PY-SEC-SQL-FSTRING",
         "category": "Security",
-        "regex": re.compile(r"""\.(?:execute|raw)\s*\(\s*f["']"""),
+        "regex": re.compile(r"""\.(?:execute|executemany|raw)\s*\(\s*f["']""", re.I),
         "languages": [".py"],
         "severity_hint": "Critical",
         "explanation": "SQL query formatted via Python f-string directly introduces SQL injection."
@@ -289,7 +289,7 @@ RULES = [
     {
         "id": "PY-BUG-MUTABLE-DEFAULT",
         "category": "Correctness",
-        "regex": re.compile(r"""def\s+[a-zA-Z0-9_]+\s*\([^)]*=\s*(?:\[\]|\{\})"""),
+        "regex": re.compile(r"""def\s+[a-zA-Z0-9_]+\s*\([^)]*=\s*(?:\[\s*\]|\{\s*\})"""),
         "languages": [".py"],
         "severity_hint": "Medium",
         "explanation": "Mutable default arguments ([] or {}) in Python retain state across invocations."
@@ -297,7 +297,7 @@ RULES = [
     {
         "id": "PY-SEC-DEBUG-TRUE",
         "category": "Security",
-        "regex": re.compile(r"""DEBUG\s*=\s*True"""),
+        "regex": re.compile(r"""(?:\bDEBUG\b|["']DEBUG["']\]?|\bdebug\b)\s*[:=]\s*True""", re.I),
         "languages": [".py"],
         "severity_hint": "Medium",
         "explanation": "DEBUG mode enabled exposes detailed tracebacks and interactive debuggers."
@@ -307,7 +307,7 @@ RULES = [
     {
         "id": "GO-BUG-IGNORED-ERROR",
         "category": "Correctness",
-        "regex": re.compile(r"""(?:,\s*_\s*:=|,\s*_\s*=\s*)\s*[a-zA-Z0-9_.]+\s*\("""),
+        "regex": re.compile(r"""(?:,\s*_\s*:=|,\s*_\s*=\s*|^\s*_\s*=\s*)\s*[a-zA-Z0-9_.]+\s*\("""),
         "languages": [".go"],
         "severity_hint": "Medium",
         "explanation": "Explicitly ignoring return error with blank identifier (_) masks failures."
@@ -323,7 +323,7 @@ RULES = [
     {
         "id": "GO-SEC-EXEC-CMD",
         "category": "Security",
-        "regex": re.compile(r"""exec\.Command\s*\(\s*(?:r\.|req\.|input|cmd|name)"""),
+        "regex": re.compile(r"""exec\.(?:Command|CommandContext)\s*\((?:[^,)]*,)?\s*(?:r\.|req\.|input|cmd|name)"""),
         "languages": [".go"],
         "severity_hint": "High",
         "explanation": "Spawning system command from variable or user request enables command injection."
@@ -341,7 +341,7 @@ RULES = [
     {
         "id": "JAVA-SEC-SQL-CONCAT",
         "category": "Security",
-        "regex": re.compile(r"""(?:executeQuery|executeUpdate)\s*\(\s*["'].*?["']\s*\+"""),
+        "regex": re.compile(r"""(?:executeQuery|executeUpdate|execute)\s*\(\s*["'].*?["']\s*\+"""),
         "languages": [".java"],
         "severity_hint": "Critical",
         "explanation": "Building SQL queries by concatenating strings instead of using PreparedStatement."
@@ -375,7 +375,7 @@ RULES = [
     {
         "id": "GEN-SEC-AWS-KEY",
         "category": "Secrets",
-        "regex": re.compile(r"""\b(AKIA[0-9A-Z]{16})\b"""),
+        "regex": re.compile(r"""\b((?:AKIA|ASIA)[0-9A-Z]{16})\b"""),
         "languages": [],
         "severity_hint": "Critical",
         "explanation": "Hard-coded Amazon Web Services (AWS) Access Key ID detected."
@@ -383,7 +383,7 @@ RULES = [
     {
         "id": "GEN-SEC-GITHUB-TOKEN",
         "category": "Secrets",
-        "regex": re.compile(r"""\b(gh[pousr]_[0-9a-zA-Z]{36})\b"""),
+        "regex": re.compile(r"""\b(gh[pousr]_[0-9a-zA-Z]{36}|github_pat_[0-9a-zA-Z_]{82})\b"""),
         "languages": [],
         "severity_hint": "Critical",
         "explanation": "Hard-coded GitHub personal access or OAuth token detected."
@@ -431,7 +431,7 @@ RULES = [
     {
         "id": "GEN-SEC-WEAK-HASH",
         "category": "Security",
-        "regex": re.compile(r"""(?:crypto\.createHash\s*\(\s*["'](?:md5|sha1)["']|hashlib\.(?:md5|sha1)\s*\()"""),
+        "regex": re.compile(r"""(?:crypto\.createHash\s*\(\s*["'](?:md5|sha1)["']|hashlib\.(?:md5|sha1)\s*\(|MessageDigest\.getInstance\s*\(\s*["'](?:MD5|SHA-?1)["']|\b(?:md5|sha1)\.New\s*\(|(?<![a-zA-Z0-9_])(?:md5|sha1)\s*\()""", re.I),
         "languages": [],
         "severity_hint": "Medium",
         "explanation": "Use of cryptographically broken hash algorithm (MD5 or SHA1)."
@@ -439,7 +439,7 @@ RULES = [
     {
         "id": "GEN-SEC-ECB-MODE",
         "category": "Security",
-        "regex": re.compile(r"""(?:AES/ECB/|Cipher\.getInstance\s*\([^)]*ECB)"""),
+        "regex": re.compile(r"""(?:AES/ECB/|Cipher\.getInstance\s*\([^)]*ECB|modes\.ECB\s*\(|\bMODE_ECB\b)""", re.I),
         "languages": [],
         "severity_hint": "High",
         "explanation": "Electronic Codebook (ECB) cipher mode does not provide semantic security."
@@ -489,7 +489,7 @@ def redact_secrets(snippet, rule):
                 return val[:4] + "****"
             return "****"
 
-        snippet = re.sub(r"""\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[0-9a-zA-Z]{36}|sk_live_[0-9a-zA-Z]{24,}|xox[baprs]-[0-9a-zA-Z]{10,48})\b""", repl, snippet)
+        snippet = re.sub(r"""\b(?:(?:AKIA|ASIA)[0-9A-Z]{16}|gh[pousr]_[0-9a-zA-Z]{36}|github_pat_[0-9a-zA-Z_]{82}|sk_live_[0-9a-zA-Z]{24,}|xox[baprs]-[0-9a-zA-Z]{10,48})\b""", repl, snippet)
         snippet = re.sub(r"""((?:password|passwd|pwd|secret)["']?\s*[:=]\s*["'])([^"'\s]{6,})(["'])""",
                          lambda m: m.group(1) + (m.group(2)[:4] + "****" if m.group(2).lower() not in PLACEHOLDERS and not m.group(2).lower().startswith("example") else m.group(2)) + m.group(3),
                          snippet, flags=re.I)
@@ -500,12 +500,18 @@ def is_placeholder_secret(match, rule):
         groups = match.groups()
         if groups:
             val = groups[0].lower().strip("\"'\t ")
-            if val in PLACEHOLDERS or val.startswith("example"):
+            if (val in PLACEHOLDERS
+                or val.startswith("example")
+                or val.endswith("example")
+                or val.startswith("your-")
+                or val.startswith("my-")
+                or set(val) == {"x"}
+                or set(val) == {"0"}):
                 return True
         return False
     if rule["category"] == "Secrets":
-        val = match.group(0).lower()
-        if any(ph in val for ph in PLACEHOLDERS) or "example" in val:
+        val = match.group(0).lower().strip("\"'\t ")
+        if val in PLACEHOLDERS or val.endswith("example") or "00000000" in val or "xxxxxxxx" in val:
             return True
     return False
 
@@ -515,9 +521,10 @@ def is_empty_catch(lines, i):
     if not m:
         return False
     after_brace = line[m.end():].strip()
-    if after_brace == "}" or re.match(r"""^(?://.*|/\*.*?\*/|\s*)*\}$""", after_brace):
+    after_clean = re.sub(r"""/\*.*?\*/""", "", after_brace).strip()
+    if after_clean == "}" or re.match(r"""^(?://.*|\s*)*\}$""", after_clean):
         return True
-    if after_brace and not after_brace.startswith("//"):
+    if after_clean and not (after_clean.startswith("//") or after_clean.startswith("/*")):
         return False
     for j in range(i + 1, min(len(lines), i + 20)):
         sub = lines[j].strip()
@@ -619,7 +626,12 @@ def run_scan(target_path, rules, category=None, min_severity=None, max_hits=100,
     all_hits = []
 
     if root.is_file():
-        all_hits.extend(scan_file(root, root.parent, rules, category, min_sev_score))
+        base_dir = Path.cwd().resolve()
+        try:
+            root.relative_to(base_dir)
+        except ValueError:
+            base_dir = root.parent
+        all_hits.extend(scan_file(root, base_dir, rules, category, min_sev_score))
     else:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not is_ignored(Path(dirpath) / d, root, patterns)]

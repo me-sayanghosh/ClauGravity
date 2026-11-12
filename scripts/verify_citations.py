@@ -19,9 +19,9 @@ import re
 import sys
 from pathlib import Path
 
-LOCATION_REGEX = re.compile(r"""\*\*Location:\*\*\s*[`"]?([^\s`"]+)[`"]?""")
+LOCATION_REGEX = re.compile(r"""\*\*Location:\*\*\s*(?:\[`?|[`"<])?([a-zA-Z0-9_./\\-]+(?::\s*L?\d+(?:\s*-\s*L?\d+)?)?)(?:`?\](?:\([^)]*\))?|[`">])?""")
 EVIDENCE_REGEX = re.compile(r"""\*\*Evidence:\*\*\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n(.*?)```""", re.DOTALL)
-FINDING_HEADER_REGEX = re.compile(r"""^###\s+(?:\[?([A-Za-z0-9_-]+)\]?:?|([A-Za-z0-9_-]+:))\s*(.*)$""", re.M)
+FINDING_HEADER_REGEX = re.compile(r"""^#{2,4}\s+(?:\[?([A-Za-z0-9_-]+)\]?:?|([A-Za-z0-9_-]+:))\s*(.*)$""", re.M)
 
 def normalize_text(text):
     lines = [re.sub(r"""\s+""", " ", line).strip() for line in text.splitlines()]
@@ -31,7 +31,7 @@ def parse_findings(report_text):
     findings = []
     # Split by finding blocks or scan sequentially
     # We look for finding sections containing **Location:** and **Evidence:**
-    blocks = re.split(r"""(?=^###\s+)""", report_text, flags=re.M)
+    blocks = re.split(r"""(?=^#{2,4}\s+)""", report_text, flags=re.M)
 
     for block in blocks:
         loc_match = LOCATION_REGEX.search(block)
@@ -39,7 +39,7 @@ def parse_findings(report_text):
         if not loc_match or not evi_match:
             continue
 
-        header_match = re.search(r"""^###\s+(.*)$""", block, re.M)
+        header_match = re.search(r"""^#{2,4}\s+(.*)$""", block, re.M)
         title = header_match.group(1).strip() if header_match else "Unknown Finding"
 
         loc_str = loc_match.group(1).strip()
@@ -64,6 +64,7 @@ def parse_location(loc_str):
         return loc_clean, None, None
 
     file_part, line_part = loc_clean.rsplit(":", 1)
+    line_part = line_part.replace(" ", "")
     if "-" in line_part:
         start_s, end_s = line_part.split("-", 1)
         start_s = start_s.strip().lstrip("Ll")
