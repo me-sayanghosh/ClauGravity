@@ -92,3 +92,66 @@ Request Received
 - **Method**: Run automated scripts, inspect top 5 highest-risk files, verify critical leads, discard false alarms.
 - **Output**: Compact executive summary with top 3–5 high-risk issues and recommended immediate actions.
 
+---
+
+## 4. End-to-End Audit Workflow (Phases 0–6)
+Detailed step-by-step procedures are documented in [`references/audit-workflow.md`](references/audit-workflow.md):
+1. **Phase 0: Scope & Setup**: Detect mode, inspect git branch/status, initialize `.claugravity/` scratchpad.
+2. **Phase 1: Map**: Run `scripts/map_repo.py` to identify entry points, boundaries, and models.
+3. **Phase 2: Automated Signals**: Run `scripts/run_checks.py` and `scripts/find_risk_patterns.py` for initial leads.
+4. **Phase 3: Targeted Deep Review**: Follow risk order, load relevant references, trace source-to-sink data flows.
+5. **Phase 4: Disprove Pass**: Falsify candidates via [`references/false-positive-filters.md`](references/false-positive-filters.md).
+6. **Phase 5: Safe Reproduction**: Optional isolated test cases in temporary directories (never in project tree).
+7. **Phase 6: Report Generation**: Format findings with templates and verify citations via `scripts/verify_citations.py`.
+
+---
+
+## 5. Situation-to-Reference Map
+Progressively load only the references required for the target codebase:
+
+| Target Context / Technology | Required References to Consult |
+| :--- | :--- |
+| **Node.js, Express, React, MongoDB** | [`references/js-ts-node-react.md`](references/js-ts-node-react.md) and [`references/data-and-api.md`](references/data-and-api.md) |
+| **Concurrency, Queues, Race Conditions** | [`references/concurrency-and-async.md`](references/concurrency-and-async.md) |
+| **Python (Django, Flask, FastAPI)** | [`references/python.md`](references/python.md) |
+| **Go, Java, Kotlin, C#, PHP, Ruby, Rust** | [`references/other-languages.md`](references/other-languages.md) |
+| **Large Repositories (>50k LOC / >100 files)** | [`references/large-repo-strategy.md`](references/large-repo-strategy.md) |
+| **Security Audits & OWASP Checks** | [`references/security-checklist.md`](references/security-checklist.md) |
+| **General Logic & Correctness Defects** | [`references/general-bug-patterns.md`](references/general-bug-patterns.md) |
+| **Pre-Reporting Disproof & Scoring** | [`references/false-positive-filters.md`](references/false-positive-filters.md) and [`references/severity-and-confidence.md`](references/severity-and-confidence.md) |
+
+---
+
+## 6. Analysis Scripts
+Treat all scripts as black-box utilities. Invoke with `--help` for syntax; do not inspect script source code unless debugging execution failures:
+- **Repository Topology**: `python scripts/map_repo.py [path] [--json]`
+- **Lead Scanner**: `python scripts/find_risk_patterns.py [path] [--category X] [--min-severity High] [--json]`
+- **Native Check Runner**: `python scripts/run_checks.py [path] [--allow-tests] [--json]`
+- **Chunk Planner**: `python scripts/chunk_plan.py [path] [--max-chunks N] [--json]`
+- **Citation Gate**: `python scripts/verify_citations.py <report.md> --root [path]`
+
+---
+
+## 7. Report Output & Verification Standards
+- **Report Location**: Write full audit reports to `.claugravity/report.md` using [`templates/audit-report.md`](templates/audit-report.md). Use [`templates/finding.md`](templates/finding.md) for individual defects and [`templates/pr-review.md`](templates/pr-review.md) for diff reviews.
+- **Mandatory Citation Verification**: Prior to presenting findings, execute:
+  ```bash
+  python scripts/verify_citations.py .claugravity/report.md --root .
+  ```
+  Every cited location must match code verbatim. Findings failing verification must be remediated or discarded.
+- **Final Summary Presentation**: Deliver a concise executive summary displaying:
+  1. Top confirmed findings with IDs, locations, and severities.
+  2. Summary table of finding counts by severity.
+  3. Coverage notes (modules audited, paths skipped).
+  4. Practical prioritized fix plan (Quick wins vs. Structural changes).
+
+---
+
+## 8. Hard Boundaries and Prohibited Actions
+- **No Source File Modification**: Never alter, delete, or reformat user code. Propose diffs in the audit report only.
+- **No Destructive Execution**: Never drop tables, truncate databases, or execute destructive commands.
+- **No Production Probing**: Do not issue requests to live production APIs, public endpoints, or third-party webhooks.
+- **No Hallucinated Citations**: Never fabricate line numbers or code excerpts. Citations are verified mechanically.
+- **Credential Protection**: Redact all discovered secret values to the first four characters plus `****`.
+
+
