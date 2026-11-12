@@ -204,7 +204,7 @@ def analyze_repo(target_path, max_depth=6):
             if fname.startswith(".env") or fname.endswith("config.js") or fname.endswith("config.ts") or fname.endswith("settings.py"):
                 configs.append(rel_str)
 
-            if "docker" in fname.lower() or fname.startswith(".github") or fname.startswith(".gitlab") or "ci" in fname.lower():
+            if "docker" in fname.lower() or fname.startswith(".github") or fname.startswith(".gitlab") or fname.startswith("jenkins") or fname in {".travis.yml", "azure-pipelines.yml"} or "-ci." in fname.lower() or "_ci." in fname.lower() or fname.endswith(".ci.yml") or fname.endswith(".ci.yaml"):
                 ci_docker.append(rel_str)
 
             if "test" in rel_str.lower() or "spec" in rel_str.lower():
