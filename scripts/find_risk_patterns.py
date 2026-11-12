@@ -63,7 +63,7 @@ RULES = [
     {
         "id": "JS-SEC-EVAL",
         "category": "Security",
-        "regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process\.)?exec\s*\(\s*`|(?:\.exec|\.execSync)\s*\(\s*[^"'\s)]+)"""),
+        "regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process|cp)\.(?:exec|execSync)\s*\(|\bexecSync\s*\(|(?<!\.)\bexec\s*\(\s*`|(?<!\.)\bexec\s*\(\s*[^"'\`\s)]+)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
         "severity_hint": "Critical",
         "explanation": "Dynamic code or shell execution with variable input allows arbitrary code execution."
@@ -103,7 +103,7 @@ RULES = [
     {
         "id": "JS-CONC-FLOATING-PROMISE",
         "category": "Concurrency",
-        "regex": re.compile(r"""^\s*(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|save[A-Z][a-zA-Z0-9_]*|write[A-Z][a-zA-Z0-9_]*)\s*\([^)]*\)\s*;"""),
+        "regex": re.compile(r"""^\s*(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|[a-zA-Z0-9_]+\.(?:save|update|delete|create|insert|remove|send)|save[a-zA-Z0-9_]*|write[a-zA-Z0-9_]*)\s*\([^)]*\)\s*;"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Asynchronous function called without await or .catch(), creating an unhandled floating promise."
@@ -119,7 +119,7 @@ RULES = [
     {
         "id": "JS-BUG-LOOSE-EQUALITY",
         "category": "Correctness",
-        "regex": re.compile(r"""(?<!=)==(?!=)|(?<!=)!=(?!=)"""),
+        "regex": re.compile(r"""(?<![!=])==(?!=)|(?<![!=])!=(?!=)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Low",
         "explanation": "Loose equality (== or !=) permits unexpected type coercion; prefer strict === or !==."
@@ -143,7 +143,7 @@ RULES = [
     {
         "id": "JS-SEC-JWT-FLAW",
         "category": "Security",
-        "regex": re.compile(r"""(?:jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.[A-Z0-9_]+\s*\|\|\s*["'][^"']+["'])"""),
+        "regex": re.compile(r"""(?:jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.(?:[A-Z0-9_]*(?:JWT|SECRET|KEY|TOKEN|AUTH)[A-Z0-9_]*)\s*\|\|\s*["'][^"'\s]+["'])"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "JWT signed with fallback default secret or insecure default value in source."
@@ -151,7 +151,7 @@ RULES = [
     {
         "id": "JS-BUG-EMPTY-CATCH",
         "category": "Correctness",
-        "regex": re.compile(r"""catch\s*(?:\([^)]*\))?\s*\{\s*(?://[^\n]*)?$"""),
+        "regex": re.compile(r"""\bcatch\s*(?:\([^)]*\))?\s*\{\s*(?://[^\n]*)?\}"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Empty or comment-only catch block silently swallows exceptions, obscuring critical runtime errors."
@@ -249,7 +249,7 @@ RULES = [
     {
         "id": "PY-SEC-YAML",
         "category": "Security",
-        "regex": re.compile(r"""yaml\.load\s*\([^)]*(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)"""),
+        "regex": re.compile(r"""yaml\.load\s*\((?:(?!Loader\s*=\s*(?:yaml\.)?SafeLoader)[^)])*\)"""),
         "languages": [".py"],
         "severity_hint": "High",
         "explanation": "Calling yaml.load() without SafeLoader allows arbitrary Python object instantiation."
@@ -307,7 +307,7 @@ RULES = [
     {
         "id": "GO-BUG-IGNORED-ERROR",
         "category": "Correctness",
-        "regex": re.compile(r"""(?:,\s*_\s*:=|,\s*_\s*=\s*)[a-zA-Z0-9_.]+\s*\("""),
+        "regex": re.compile(r"""(?:,\s*_\s*:=|,\s*_\s*=\s*)\s*[a-zA-Z0-9_.]+\s*\("""),
         "languages": [".go"],
         "severity_hint": "Medium",
         "explanation": "Explicitly ignoring return error with blank identifier (_) masks failures."
@@ -496,12 +496,35 @@ def redact_secrets(snippet, rule):
     return snippet
 
 def is_placeholder_secret(match, rule):
+    if rule["category"] == "Secrets":
+        val = match.group(0).lower()
+        if any(ph in val for ph in PLACEHOLDERS) or "example" in val:
+            return True
     if rule["id"] == "GEN-SEC-HARDCODED-PASSWORD":
         groups = match.groups()
         if groups:
             val = groups[0].lower().strip("\"'\t ")
             if val in PLACEHOLDERS or val.startswith("example"):
                 return True
+    return False
+
+def is_empty_catch(lines, i):
+    line = lines[i]
+    m = re.search(r"""\bcatch\s*(?:\([^)]*\))?\s*\{""", line)
+    if not m:
+        return False
+    after_brace = line[m.end():].strip()
+    if after_brace == "}" or re.match(r"""^(?://.*)?\}$""", after_brace):
+        return True
+    if after_brace and not after_brace.startswith("//"):
+        return False
+    for j in range(i + 1, min(len(lines), i + 20)):
+        sub = lines[j].strip()
+        if not sub or sub.startswith("//") or sub.startswith("*") or sub.startswith("/*"):
+            continue
+        if sub == "}" or sub.startswith("}"):
+            return True
+        return False
     return False
 
 def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0):
@@ -520,25 +543,66 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
     try:
         rel_path = str(file_path.relative_to(root_dir)).replace(os.sep, "/")
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            for line_no, line in enumerate(f, start=1):
-                if len(line) > 1000:
+            lines = f.readlines()
+
+        for line_no, line in enumerate(lines, start=1):
+            if len(line) > 1000:
+                continue
+            for rule in applicable_rules:
+                if rule["id"] == "JS-BUG-EMPTY-CATCH":
+                    if not is_empty_catch(lines, line_no - 1):
+                        continue
+                    clean_line = redact_secrets(line.strip()[:160], rule)
+                    hits.append({
+                        "rule_id": rule["id"],
+                        "category": rule["category"],
+                        "severity": rule["severity_hint"],
+                        "location": f"{rel_path}:{line_no}",
+                        "line_number": line_no,
+                        "file": rel_path,
+                        "line_snippet": clean_line,
+                        "explanation": rule["explanation"]
+                    })
                     continue
-                for rule in applicable_rules:
-                    m = rule["regex"].search(line)
-                    if m:
-                        if is_placeholder_secret(m, rule):
-                            continue
-                        clean_line = redact_secrets(line.strip()[:160], rule)
-                        hits.append({
-                            "rule_id": rule["id"],
-                            "category": rule["category"],
-                            "severity": rule["severity_hint"],
-                            "location": f"{rel_path}:{line_no}",
-                            "line_number": line_no,
-                            "file": rel_path,
-                            "line_snippet": clean_line,
-                            "explanation": rule["explanation"]
-                        })
+
+                if rule["id"] == "JS-REACT-STALE-CLOSURE":
+                    if not re.search(r"""\buseEffect\s*\(""", line):
+                        continue
+                    has_empty_deps = False
+                    for j in range(line_no - 1, min(len(lines), line_no + 35)):
+                        if re.search(r"""\}\s*,\s*\[\s*\]\s*\)""", lines[j]) or re.search(r"""useEffect\s*\(.*?,\s*\[\s*\]\s*\)""", lines[j]):
+                            has_empty_deps = True
+                            break
+                    if not has_empty_deps:
+                        continue
+                    clean_line = redact_secrets(line.strip()[:160], rule)
+                    hits.append({
+                        "rule_id": rule["id"],
+                        "category": rule["category"],
+                        "severity": rule["severity_hint"],
+                        "location": f"{rel_path}:{line_no}",
+                        "line_number": line_no,
+                        "file": rel_path,
+                        "line_snippet": clean_line,
+                        "explanation": rule["explanation"]
+                    })
+                    continue
+
+                m = rule["regex"].search(line)
+                if m:
+                    if is_placeholder_secret(m, rule):
+                        continue
+                    clean_line = redact_secrets(line.strip()[:160], rule)
+                    hits.append({
+                        "rule_id": rule["id"],
+                        "category": rule["category"],
+                        "severity": rule["severity_hint"],
+                        "location": f"{rel_path}:{line_no}",
+                        "line_number": line_no,
+                        "file": rel_path,
+                        "line_snippet": clean_line,
+                        "explanation": rule["explanation"]
+                    })
     except Exception:
         pass
     return hits
