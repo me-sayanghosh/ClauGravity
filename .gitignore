@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+
+# ClauGravity audit working artifacts
+.claugravity/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*
+!.env.example
