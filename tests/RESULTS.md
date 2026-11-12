@@ -30,3 +30,42 @@ This document records the empirical results, detection metrics, and improvement 
 
 *Notes on Script Signals:*
 Automated scanning identified 4 of the 12 defects directly as leads. The remaining 8 defects require semantic data-flow tracing and targeted deep review (Phases 3 & 4) as prescribed by the ClauGravity two-pass audit workflow.
+
+---
+
+## Iteration 1: full audit
+
+### Scorecard Summary
+- **Audit Blindness:** **Not Blind** (Executed within the current agent conversation; sub-agent isolation was not available in this environment).
+- **Planted Defects Detected:** **12 of 12 (100%)**
+- **Missed Planted Defects:** **0**
+- **Decoys Reported as Confirmed Bugs:** **0** (All 3 decoys were correctly falsified and discarded during the Phase 4 Disprove Pass).
+- **Mechanical Citation Failures:** **0** (12 of 12 citations verified by `scripts/verify_citations.py`).
+- **Iteration Count:** 1
+- **Pass Threshold Met:** **YES (Exceeds 10/12 threshold with 0 decoys and 0 citation failures).**
+
+### Detailed Score Breakdown
+
+| Planted Bug ID | Description | Location in Fixture | Finding in Report | Verified? |
+| :--- | :--- | :--- | :--- | :--- |
+| **B1** | Permissive Credentialed CORS | `src/server.js:15-18` | **CG-007** | PASS |
+| **B2** | Hardcoded Fallback JWT Secret | `src/server.js:23-27` | **CG-006** | PASS |
+| **B3** | NoSQL Operator Injection | `src/routes/auth.js:9-13` | **CG-002** | PASS |
+| **B4** | Stock Read-Modify-Save Race | `src/routes/orders.js:15-19` | **CG-004** | PASS |
+| **B5** | Missing await on DB Write | `src/routes/orders.js:40-44` | **CG-005** | PASS |
+| **B6** | Order Retrieval IDOR | `src/routes/orders.js:51-57` | **CG-003** | PASS |
+| **B7** | Unbounded Query in Products | `src/routes/products.js:9-12` | **CG-008** | PASS |
+| **B8** | Missing Auth on Admin Route | `src/routes/admin.js:8-14` | **CG-001** | PASS |
+| **B9** | Swallowed Payment Error | `src/routes/payments.js:18-24` | **CG-009** | PASS |
+| **B10** | forEach(async) in Notifications | `src/utils/notify.js:9-13` | **CG-010** | PASS |
+| **B11** | Floating-Point Financial Math | `src/utils/pricing.js:4-10` | **CG-011** | PASS |
+| **B12** | Stale React Closure in Hook | `client/OrderList.jsx:8-17` | **CG-012** | PASS |
+
+### Decoy Evaluation
+
+| Decoy ID | Description | Location in Fixture | Status in Audit |
+| :--- | :--- | :--- | :--- |
+| **Decoy 1** | Parameterized Safe Username Lookup | `src/routes/auth.js:28-36` | **Correctly Discarded** (Verified string coercion) |
+| **Decoy 2** | Route Protected by Router Middleware | `src/routes/products.js:18-29` | **Correctly Discarded** (Verified router.use auth) |
+| **Decoy 3** | Math.random Used for UI Shuffling | `client/OrderList.jsx:21` | **Correctly Discarded** (Verified non-security UI usage) |
+
