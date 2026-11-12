@@ -25,8 +25,15 @@ def is_tool_available(name):
 
 def run_cmd(cmd, cwd, timeout=30):
     try:
+        exec_cmd = list(cmd)
+        if sys.platform == "win32":
+            resolved = shutil.which(exec_cmd[0])
+            if resolved:
+                exec_cmd[0] = resolved
+            if exec_cmd[0].lower().endswith((".cmd", ".bat")):
+                exec_cmd = ["cmd.exe", "/c"] + exec_cmd
         proc = subprocess.run(
-            cmd,
+            exec_cmd,
             cwd=cwd,
             capture_output=True,
             text=True,
@@ -97,9 +104,12 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
         elif (root / "pnpm-lock.yaml").is_file() and is_tool_available("pnpm"):
             res = run_cmd(["pnpm", "audit", "--prod"], cwd=root, timeout=timeout)
             results.append({"name": "pnpm audit (prod)", "tool": "pnpm", "category": "Security", **res})
+        elif (root / "package-lock.json").is_file() or (root / "npm-shrinkwrap.json").is_file():
+            if is_tool_available("npm"):
+                res = run_cmd(["npm", "audit", "--omit=dev"], cwd=root, timeout=timeout)
+                results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", **res})
         elif is_tool_available("npm"):
-            res = run_cmd(["npm", "audit", "--omit=dev"], cwd=root, timeout=timeout)
-            results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", **res})
+            results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", "status": "skipped: no lockfile", "exit_code": 0, "output": "Skipped: npm audit requires an existing package-lock.json."})
 
     if tsconfig.is_file() and is_tool_available("tsc"):
         res = run_cmd(["tsc", "--noEmit"], cwd=root, timeout=timeout)
@@ -108,8 +118,16 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
     # 2. Python Checks
     pyproject = root / "pyproject.toml"
     setup_py = root / "setup.py"
+    setup_cfg = root / "setup.cfg"
     req_txt = root / "requirements.txt"
-    has_python = pyproject.is_file() or setup_py.is_file() or req_txt.is_file() or any(root.glob("*.py"))
+    has_python = (
+        pyproject.is_file()
+        or setup_py.is_file()
+        or setup_cfg.is_file()
+        or req_txt.is_file()
+        or any(root.glob("*.py"))
+        or any(root.glob("*/*.py"))
+    )
 
     if has_python:
         if is_tool_available("ruff"):

@@ -71,7 +71,7 @@ RULES = [
     {
         "id": "JS-SEC-SQL",
         "category": "Security",
-        "regex": re.compile(r"""(?:query|execute)\s*\(\s*(?:`[^`]*\$\{[^}]+\}|["'][^"']*(?:SELECT|INSERT|UPDATE|DELETE)[^"']*["']\s*\+)"""),
+        "regex": re.compile(r"""(?:query|execute)\s*\(\s*(?:`[^`]*\$\{[^}]+\}|["'][^"']*(?:SELECT|INSERT|UPDATE|DELETE)[^"']*["']\s*\+)""", re.I),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Critical",
         "explanation": "SQL query built via string interpolation or concatenation instead of parameterization."
@@ -79,7 +79,7 @@ RULES = [
     {
         "id": "JS-SEC-NOSQL",
         "category": "Security",
-        "regex": re.compile(r"""\.(?:find|findOne|update|updateOne|updateMany|delete|deleteOne|deleteMany)\s*\(\s*(?:req\.(?:body|query)|{[^}]*\$where)"""),
+        "regex": re.compile(r"""\.(?:find|findOne|update|updateOne|updateMany|delete|deleteOne|deleteMany)\s*\(\s*(?:\{?\s*\.{3}\s*req\.(?:body|query)|req\.(?:body|query)|{[^}]*\$where)"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "Passing unvalidated request body/query directly to MongoDB queries or using $where."
@@ -103,7 +103,7 @@ RULES = [
     {
         "id": "JS-CONC-FLOATING-PROMISE",
         "category": "Concurrency",
-        "regex": re.compile(r"""^\s*(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|[a-zA-Z0-9_]+\.(?:save|update|delete|create|insert|remove|send)|save[a-zA-Z0-9_]*|write[a-zA-Z0-9_]*)\s*\([^)]*\)\s*;"""),
+        "regex": re.compile(r"""^\s*(?:[a-zA-Z0-9_]+Async|[a-zA-Z0-9_]+Service\.[a-zA-Z0-9_]+|[a-zA-Z0-9_]+\.(?:save|update|delete|create|insert|remove|send)|save[a-zA-Z0-9_]*|write[a-zA-Z0-9_]*)\s*\([^)]*\)\s*;?\s*(?://.*)?$"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Asynchronous function called without await or .catch(), creating an unhandled floating promise."
@@ -143,7 +143,7 @@ RULES = [
     {
         "id": "JS-SEC-JWT-FLAW",
         "category": "Security",
-        "regex": re.compile(r"""(?:jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.(?:[A-Z0-9_]*(?:JWT|SECRET|KEY|TOKEN|AUTH)[A-Z0-9_]*)\s*\|\|\s*["'][^"'\s]+["'])"""),
+        "regex": re.compile(r"""(?:jwt\.sign\s*\([^)]*(?:process\.env\.[A-Z0-9_]+\s*\|\||algorithm\s*:\s*["']none["']|["']secret["']|["']default["'])|process\.env\.(?:[A-Z0-9_]*(?:JWT|SECRET|KEY|TOKEN|AUTH)[A-Z0-9_]*)\s*\|\|\s*["'][^"']*["'])"""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "JWT signed with fallback default secret or insecure default value in source."
@@ -175,7 +175,7 @@ RULES = [
     {
         "id": "JS-SEC-MATH-RANDOM-TOKEN",
         "category": "Security",
-        "regex": re.compile(r"""(?:Math\.random\s*\(\s*\).*?(?:token|secret|password|nonce|key|session)|(?:token|secret|password|nonce|key|session).*?Math\.random\s*\(\s*\))"""),
+        "regex": re.compile(r"""(?:Math\.random\s*\(\s*\).*?(?:token|secret|password|nonce|key|session)|(?:token|secret|password|nonce|key|session).*?Math\.random\s*\(\s*\))""", re.I),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "High",
         "explanation": "Math.random() is pseudo-random and predictable; use crypto.randomBytes() for tokens."
@@ -223,7 +223,7 @@ RULES = [
     {
         "id": "JS-SEC-UNGUARDED-ROUTE",
         "category": "Security",
-        "regex": re.compile(r"""(?:app|router)\.(?:post|put|delete)\s*\(\s*["'][^"']+["']\s*,\s*async\s*\("""),
+        "regex": re.compile(r"""(?:app|router)\.(?:post|put|delete|patch)\s*\(\s*["'`][^"'`]+["'`]\s*,\s*async\s*\("""),
         "languages": [".js", ".ts"],
         "severity_hint": "Medium",
         "explanation": "State-changing HTTP route registered directly with async handler without inline auth middleware."
@@ -241,7 +241,7 @@ RULES = [
     {
         "id": "PY-SEC-PICKLE",
         "category": "Security",
-        "regex": re.compile(r"""\bpickle\.loads\s*\("""),
+        "regex": re.compile(r"""\bpickle\.loads?\s*\("""),
         "languages": [".py"],
         "severity_hint": "Critical",
         "explanation": "Unpickling untrusted data leads directly to remote code execution."
@@ -257,7 +257,7 @@ RULES = [
     {
         "id": "PY-SEC-SUBPROCESS-SHELL",
         "category": "Security",
-        "regex": re.compile(r"""subprocess\.(?:Popen|run|call|check_output)\s*\([^)]*shell\s*=\s*True"""),
+        "regex": re.compile(r"""subprocess\.(?:Popen|run|call|check_call|check_output)\s*\([^)]*shell\s*=\s*True"""),
         "languages": [".py"],
         "severity_hint": "High",
         "explanation": "Executing subprocess with shell=True permits command injection via unescaped shell metacharacters."
@@ -331,7 +331,7 @@ RULES = [
     {
         "id": "GO-SEC-SQL-FORMAT",
         "category": "Security",
-        "regex": re.compile(r"""(?:Query|Exec|QueryRow)\s*\(\s*fmt\.Sprintf\s*\("""),
+        "regex": re.compile(r"""(?:Query|QueryContext|Exec|ExecContext|QueryRow|QueryRowContext)\s*\([^)]*fmt\.Sprintf\s*\("""),
         "languages": [".go"],
         "severity_hint": "Critical",
         "explanation": "SQL query constructed via fmt.Sprintf instead of prepared statements."
@@ -415,7 +415,7 @@ RULES = [
     {
         "id": "GEN-SEC-HARDCODED-PASSWORD",
         "category": "Secrets",
-        "regex": re.compile(r"""(?:password|passwd|pwd|secret)\s*=\s*["']([^"'\s]{6,})["']""", re.I),
+        "regex": re.compile(r"""(?:password|passwd|pwd|secret)["']?\s*[:=]\s*["']([^"'\s]{6,})["']""", re.I),
         "languages": [],
         "severity_hint": "High",
         "explanation": "Plaintext password or secret credential literal assigned in source."
@@ -490,22 +490,23 @@ def redact_secrets(snippet, rule):
             return "****"
 
         snippet = re.sub(r"""\b(?:AKIA[0-9A-Z]{16}|gh[pousr]_[0-9a-zA-Z]{36}|sk_live_[0-9a-zA-Z]{24,}|xox[baprs]-[0-9a-zA-Z]{10,48})\b""", repl, snippet)
-        snippet = re.sub(r"""((?:password|passwd|pwd|secret)\s*=\s*["'])([^"'\s]{6,})(["'])""",
+        snippet = re.sub(r"""((?:password|passwd|pwd|secret)["']?\s*[:=]\s*["'])([^"'\s]{6,})(["'])""",
                          lambda m: m.group(1) + (m.group(2)[:4] + "****" if m.group(2).lower() not in PLACEHOLDERS and not m.group(2).lower().startswith("example") else m.group(2)) + m.group(3),
                          snippet, flags=re.I)
     return snippet
 
 def is_placeholder_secret(match, rule):
-    if rule["category"] == "Secrets":
-        val = match.group(0).lower()
-        if any(ph in val for ph in PLACEHOLDERS) or "example" in val:
-            return True
     if rule["id"] == "GEN-SEC-HARDCODED-PASSWORD":
         groups = match.groups()
         if groups:
             val = groups[0].lower().strip("\"'\t ")
             if val in PLACEHOLDERS or val.startswith("example"):
                 return True
+        return False
+    if rule["category"] == "Secrets":
+        val = match.group(0).lower()
+        if any(ph in val for ph in PLACEHOLDERS) or "example" in val:
+            return True
     return False
 
 def is_empty_catch(lines, i):
@@ -514,7 +515,7 @@ def is_empty_catch(lines, i):
     if not m:
         return False
     after_brace = line[m.end():].strip()
-    if after_brace == "}" or re.match(r"""^(?://.*)?\}$""", after_brace):
+    if after_brace == "}" or re.match(r"""^(?://.*|/\*.*?\*/|\s*)*\}$""", after_brace):
         return True
     if after_brace and not after_brace.startswith("//"):
         return False

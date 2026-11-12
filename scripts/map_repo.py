@@ -50,15 +50,15 @@ EXT_LANG_MAP = {
 
 ROUTE_REGEXES = [
     # Express / Fastify / Node routers
-    re.compile(r"""\b(?:app|router|fastify|server)\.(get|post|put|delete|patch|options|all|route)\s*\(\s*['"]([^'"]+)['"]""", re.I),
+    re.compile(r"""\b(?:app|router|fastify|server)\.(get|post|put|delete|patch|options|all|route)\s*\(\s*['"`]([^'"`]+)['"`]""", re.I),
     # Flask / FastAPI Python decorators
-    re.compile(r"""@(?:app|router|api|bp|blueprint|api_router)\.(route|get|post|put|delete|patch)\s*\(\s*['"]([^'"]+)['"]""", re.I),
+    re.compile(r"""@(?:app|router|api|bp|blueprint|api_router)\.(route|get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]""", re.I),
     # Django path / re_path
-    re.compile(r"""\b(?:path|re_path)\s*\(\s*['"]([^'"]+)['"]"""),
+    re.compile(r"""\b(?:path|re_path)\s*\(\s*['"`]([^'"`]+)['"`]"""),
     # Gin Go routes
-    re.compile(r"""\b(?:r|router|engine|group|v1|v2|api)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|Any)\s*\(\s*['"]([^'"]+)['"]"""),
+    re.compile(r"""\b(?:r|router|engine|group|v1|v2|api)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|Any)\s*\(\s*['"`]([^'"`]+)['"`]"""),
     # Spring Boot Java annotations
-    re.compile(r"""@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*\(\s*(?:(?:value|path)\s*=\s*)?['"]([^'"]+)['"]"""),
+    re.compile(r"""@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*\(\s*(?:(?:value|path)\s*=\s*)?['"`]([^'"`]+)['"`]"""),
 ]
 
 def detect_frameworks(root, manifests):
@@ -71,7 +71,7 @@ def detect_frameworks(root, manifests):
             content = mpath.read_text(encoding="utf-8", errors="ignore").lower()
             if m.endswith("package.json"):
                 for fw in ["express", "react", "next", "vue", "fastify", "nestjs", "koa", "angular", "svelte"]:
-                    if f'"{fw}"' in content:
+                    if f'"{fw}"' in content or (fw == "nestjs" and "@nestjs/" in content) or (fw == "angular" and "@angular/" in content):
                         frameworks.add(fw.capitalize() if fw != "next" else "Next.js")
             elif m.endswith((".txt", ".toml")):
                 for fw in ["django", "flask", "fastapi", "tornado", "pyramid"]:
@@ -81,7 +81,7 @@ def detect_frameworks(root, manifests):
                 for fw in ["gin", "fiber", "echo", "chi"]:
                     if fw in content:
                         frameworks.add(fw.capitalize())
-            elif m.endswith(("pom.xml", "build.gradle")):
+            elif m.endswith(("pom.xml", "build.gradle", "build.gradle.kts")):
                 if "spring" in content:
                     frameworks.add("Spring Boot")
         except Exception:
@@ -198,13 +198,23 @@ def analyze_repo(target_path, max_depth=6):
                 lang = EXT_LANG_MAP[ext]
                 lang_counts[lang] = lang_counts.get(lang, 0) + lines
 
-            if fname in {"package.json", "pyproject.toml", "requirements.txt", "go.mod", "pom.xml", "Cargo.toml", "Gemfile"}:
+            if fname in {"package.json", "pyproject.toml", "requirements.txt", "go.mod", "pom.xml", "build.gradle", "build.gradle.kts", "Cargo.toml", "Gemfile"}:
                 manifests.append(rel_str)
 
-            if fname.startswith(".env") or fname.endswith("config.js") or fname.endswith("config.ts") or fname.endswith("settings.py"):
+            if fname.startswith(".env") or fname.endswith("config.js") or fname.endswith("config.ts") or fname.endswith("config.py") or fname.endswith("settings.py"):
                 configs.append(rel_str)
 
-            if "docker" in fname.lower() or fname.startswith(".github") or fname.startswith(".gitlab") or fname.startswith("jenkins") or fname in {".travis.yml", "azure-pipelines.yml"} or "-ci." in fname.lower() or "_ci." in fname.lower() or fname.endswith(".ci.yml") or fname.endswith(".ci.yaml"):
+            if ("docker" in fname.lower()
+                or rel_str.startswith(".github")
+                or rel_str.startswith(".gitlab")
+                or fname.startswith("jenkins")
+                or fname in {".travis.yml", "azure-pipelines.yml"}
+                or "-ci." in fname.lower()
+                or "_ci." in fname.lower()
+                or fname.endswith(".ci.yml")
+                or fname.endswith(".ci.yaml")
+                or fname == "ci.yml"
+                or fname == "ci.yaml"):
                 ci_docker.append(rel_str)
 
             if "test" in rel_str.lower() or "spec" in rel_str.lower():

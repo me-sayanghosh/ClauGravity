@@ -19,8 +19,8 @@ import re
 import sys
 from pathlib import Path
 
-LOCATION_REGEX = re.compile(r"""\*\*Location:\*\*\s*`([^`]+)`""")
-EVIDENCE_REGEX = re.compile(r"""\*\*Evidence:\*\*\s*\n```[a-zA-Z0-9_-]*\n(.*?)```""", re.DOTALL)
+LOCATION_REGEX = re.compile(r"""\*\*Location:\*\*\s*[`"]?([^\s`"]+)[`"]?""")
+EVIDENCE_REGEX = re.compile(r"""\*\*Evidence:\*\*\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n(.*?)```""", re.DOTALL)
 FINDING_HEADER_REGEX = re.compile(r"""^###\s+(?:\[?([A-Za-z0-9_-]+)\]?:?|([A-Za-z0-9_-]+:))\s*(.*)$""", re.M)
 
 def normalize_text(text):
@@ -57,17 +57,23 @@ def parse_location(loc_str):
     if loc_clean.startswith("./"):
         loc_clean = loc_clean[2:]
 
-    if ":" not in loc_clean:
+    # Check if colon is just a Windows drive letter (e.g. C:/file.js)
+    is_windows_drive = bool(re.match(r"^[a-zA-Z]:", loc_clean))
+    colon_count = loc_clean.count(":")
+    if colon_count == 0 or (is_windows_drive and colon_count == 1):
         return loc_clean, None, None
 
     file_part, line_part = loc_clean.rsplit(":", 1)
     if "-" in line_part:
         start_s, end_s = line_part.split("-", 1)
+        start_s = start_s.strip().lstrip("Ll")
+        end_s = end_s.strip().lstrip("Ll")
         try:
             return file_part, int(start_s), int(end_s)
         except ValueError:
             return file_part, None, None
     else:
+        line_part = line_part.strip().lstrip("Ll")
         try:
             line_num = int(line_part)
             return file_part, line_num, line_num
@@ -93,7 +99,7 @@ def verify_single_citation(finding, root_dir, tolerance=5):
     if start_line is None or end_line is None:
         return False, f"Invalid line range syntax in: {raw_loc}"
 
-    if start_line < 1 or end_line > total_lines or start_line > end_line:
+    if start_line < 1 or start_line > total_lines + tolerance or start_line > end_line or end_line > total_lines + tolerance:
         return False, f"Line range {start_line}-{end_line} out of bounds (file has {total_lines} lines)"
 
     # Expand range by tolerance
