@@ -30,13 +30,23 @@ DEFAULT_IGNORES = {
 
 LOCKFILES = {
     "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
-    "poetry.lock", "composer.lock", "Pipfile.lock", "Gemfile.lock"
+    "poetry.lock", "composer.lock", "Pipfile.lock", "Gemfile.lock",
+    "bun.lockb", "bun.lock", "flake.lock", "packages.lock.json", "mix.lock"
 }
 
 BINARY_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".woff", ".woff2",
-    ".ttf", ".eot", ".zip", ".tar", ".gz", ".7z", ".pdf", ".exe", ".bin",
-    ".so", ".dylib", ".dll", ".pyc", ".class", ".jar", ".war", ".docx", ".xlsx"
+    # Images & icons
+    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp", ".avif", ".bmp", ".tiff", ".psd",
+    # Fonts
+    ".woff", ".woff2", ".ttf", ".eot", ".otf",
+    # Archives & installers
+    ".zip", ".tar", ".gz", ".7z", ".rar", ".bz2", ".xz", ".zst", ".iso", ".dmg", ".deb", ".rpm", ".apk", ".ipa",
+    # Documents & media
+    ".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls", ".mp4", ".mp3", ".mov", ".avi", ".webm", ".wav",
+    # Binaries, compiled objects & shared libraries
+    ".exe", ".bin", ".so", ".dylib", ".dll", ".pyc", ".class", ".jar", ".war", ".wasm", ".o", ".obj", ".a", ".lib",
+    # Data dumps, models & source maps
+    ".sqlite", ".sqlite3", ".db", ".parquet", ".arrow", ".avro", ".pt", ".pth", ".onnx", ".pkl", ".pickle", ".safetensors", ".map"
 }
 
 EXT_LANG_MAP = {
