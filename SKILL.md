@@ -66,10 +66,10 @@ Request Received
 
 ### 3. DIFF Mode (Pull Request & Change Review)
 - **When to Use**: "Review my uncommitted changes", "Review PR #42", "Check git diff against main".
-- **Scripts**: Extract diff via `git diff HEAD` or `git diff main...HEAD`. Run `find_risk_patterns.py` on touched files.
+- **Scripts**: Run `python scripts/diff_audit.py [git-ref] [--output .claugravity/diff-review.md]`. Supports `--staged` and `--patch <file>`.
 - **References**: `references/general-bug-patterns.md`, `references/false-positive-filters.md`.
 - **Method**: Review modified lines, inspect all callers of modified functions, evaluate schema drift and test gaps.
-- **Output**: Review verdict (Block / Fix before merge / OK with nits) formatted with `templates/pr-review.md`.
+- **Output**: Review verdict (BLOCK / FIX BEFORE MERGE / OK WITH NITS / APPROVE) formatted with `templates/pr-review.md`.
 
 ### 4. HUNT Mode (Symptom & Bug Triage)
 - **When to Use**: "Why does /checkout return 500?", "Debug intermittent race condition", "Find why orders oversell".
@@ -125,15 +125,17 @@ Progressively load only the references required for the target codebase:
 ## 6. Analysis Scripts
 Treat all scripts as black-box utilities. Invoke with `--help` for syntax; do not inspect script source code unless debugging execution failures:
 - **Repository Topology**: `python scripts/map_repo.py [path] [--json]`
-- **Lead Scanner**: `python scripts/find_risk_patterns.py [path] [--category X] [--min-severity High] [--json]`
-- **Native Check Runner**: `python scripts/run_checks.py [path] [--allow-tests] [--json]`
-- **Chunk Planner**: `python scripts/chunk_plan.py [path] [--max-chunks N] [--json]`
-- **Citation Gate**: `python scripts/verify_citations.py <report.md> --root [path] [--json]`
+- **Lead Scanner**: `python scripts/find_risk_patterns.py [path] [--format text|json|markdown|sarif] [--category X] [--min-severity High] [-o output.md]`
+- **Native Check Runner**: `python scripts/run_checks.py [path] [--allow-tests] [--json] [-o output.json]`
+- **Chunk Planner**: `python scripts/chunk_plan.py [path] [--max-chunks N] [--format text|json|markdown] [-o output.md]`
+- **Diff / PR Review Auditor**: `python scripts/diff_audit.py [git-ref] [--staged] [--patch file] [--json] [-o output.md]`
+- **Report Scaffolder**: `python scripts/generate_report.py [path] [--title "..."] [--leads-json leads.json] [-o .claugravity/report.md]`
+- **Citation Gate**: `python scripts/verify_citations.py <report.md> --root [path] [--tolerance N] [--json] [-o output.json]`
 
 ---
 
 ## 7. Report Output & Verification Standards
-- **Report Location**: Write full audit reports to `.claugravity/report.md` using [`templates/audit-report.md`](templates/audit-report.md). Use [`templates/finding.md`](templates/finding.md) for individual defects and [`templates/pr-review.md`](templates/pr-review.md) for diff reviews.
+- **Report Location**: Write full audit reports to `.claugravity/report.md` using `scripts/generate_report.py` and [`templates/audit-report.md`](templates/audit-report.md). Use [`templates/finding.md`](templates/finding.md) for individual defects and `scripts/diff_audit.py` or [`templates/pr-review.md`](templates/pr-review.md) for diff reviews.
 - **Mandatory Citation Verification**: Prior to presenting findings, execute:
   ```bash
   python scripts/verify_citations.py .claugravity/report.md --root .

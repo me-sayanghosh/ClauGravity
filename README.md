@@ -72,11 +72,13 @@ ClauGravity/
 │   ├── false-positive-filters.md     # 8-point disproof checklist & 15 examples
 │   └── large-repo-strategy.md        # Chunking & token efficiency guidelines
 ├── scripts/                          # Portable Python 3.8+ standard library utilities
-│   ├── map_repo.py                   # Repository topology & entry point mapper
-│   ├── find_risk_patterns.py         # Multi-language heuristic lead scanner
-│   ├── run_checks.py                 # Safe native linter & typecheck runner
-│   ├── chunk_plan.py                 # Risk-weighted review module planner
-│   └── verify_citations.py           # Mechanical citation verification gate
+│   ├── map_repo.py                   # Repository topology, modern routes & entry point mapper
+│   ├── find_risk_patterns.py         # Multi-language heuristic scanner (SARIF, markdown, multiline)
+│   ├── run_checks.py                 # Safe native linter, package manager & typecheck runner
+│   ├── chunk_plan.py                 # Risk-weighted review module planner & monorepo partitioner
+│   ├── diff_audit.py                 # Automated PR and git diff reviewer with verdict scoring
+│   ├── generate_report.py            # Scaffold compliant, verifiable audit reports
+│   └── verify_citations.py           # Mechanical citation verification gate with diagnostics
 ├── templates/                        # Standardized report & review structures
 │   ├── finding.md                    # Structured defect template
 │   ├── audit-report.md               # Full audit report template
