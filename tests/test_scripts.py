@@ -527,6 +527,17 @@ class TestFindRiskPatterns(unittest.TestCase):
         hits_tmp = find_risk_patterns.scan_file(test_tmp, self.root, find_risk_patterns.RULES)
         self.assertIn("PY-SEC-INSECURE-TEMPFILE", [h["rule_id"] for h in hits_tmp])
 
+    def test_rust_and_csharp_security_rules(self):
+        test_rs = self.root / "handler.rs"
+        test_rs.write_text("let user = db.find_user(id).unwrap();\n", encoding="utf-8")
+        hits_rs = find_risk_patterns.scan_file(test_rs, self.root, find_risk_patterns.RULES)
+        self.assertIn("RUST-BUG-UNWRAP", [h["rule_id"] for h in hits_rs])
+
+        test_cs = self.root / "Query.cs"
+        test_cs.write_text("ctx.Database.ExecuteSqlRaw($\"SELECT * FROM Users WHERE Id = '{userId}'\");\n", encoding="utf-8")
+        hits_cs = find_risk_patterns.scan_file(test_cs, self.root, find_risk_patterns.RULES)
+        self.assertIn("CS-SEC-SQL-FORMAT", [h["rule_id"] for h in hits_cs])
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):

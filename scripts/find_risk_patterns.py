@@ -483,6 +483,42 @@ RULES = [
         "explanation": "Printing stack traces directly to stdout rather than using structured logging."
     },
 
+    # --- Rust Rules ---
+    {
+        "id": "RUST-BUG-UNWRAP",
+        "category": "Reliability",
+        "regex": re.compile(r"""\.(?:unwrap|expect)\s*\("""),
+        "languages": [".rs"],
+        "severity_hint": "Medium",
+        "explanation": "Calling .unwrap() or .expect() panics on None/Err, causing thread crash or denial of service."
+    },
+    {
+        "id": "RUST-SEC-UNSAFE",
+        "category": "Security",
+        "regex": re.compile(r"""\bunsafe\s*\{"""),
+        "languages": [".rs"],
+        "severity_hint": "Medium",
+        "explanation": "Unsafe Rust block bypasses compiler safety guarantees and requires manual invariant audit."
+    },
+
+    # --- C# / .NET Rules ---
+    {
+        "id": "CS-SEC-SQL-FORMAT",
+        "category": "Security",
+        "regex": re.compile(r"""(?:ExecuteSqlRaw|FromSqlRaw|SqlCommand)\s*\(\s*\$["']"""),
+        "languages": [".cs"],
+        "severity_hint": "Critical",
+        "explanation": "Interpolating raw strings into SQL commands without parameterization allows SQL injection."
+    },
+    {
+        "id": "CS-SEC-DESERIALIZATION",
+        "category": "Security",
+        "regex": re.compile(r"""(?:BinaryFormatter|JavaScriptSerializer|TypeNameHandling\s*=\s*TypeNameHandling\.Auto)"""),
+        "languages": [".cs"],
+        "severity_hint": "High",
+        "explanation": "Insecure deserialization via BinaryFormatter or TypeNameHandling enables remote code execution."
+    },
+
     # --- Generic Secrets & Cryptography ---
     {
         "id": "GEN-SEC-AWS-KEY",
