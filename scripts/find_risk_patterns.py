@@ -123,6 +123,14 @@ RULES = [
         "explanation": "Asynchronous function called without await or .catch(), creating an unhandled floating promise."
     },
     {
+        "id": "JS-CONC-RACE-CHECK-THEN-ACT",
+        "category": "Concurrency",
+        "regex": re.compile(r"""\b(?:[a-zA-Z0-9_.]+\.)?(?:stock|balance|quantity|inventory|count|amount|seats)\s*=\s*(?:[a-zA-Z0-9_.]+\.)?(?:stock|balance|quantity|inventory|count|amount|seats)\s*[-+]\s*[a-zA-Z0-9_.]+"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx", ".py"],
+        "severity_hint": "High",
+        "explanation": "Non-atomic read-modify-write pattern causes race conditions and oversell/double-spend under concurrent requests."
+    },
+    {
         "id": "JS-BUG-UNGUARDED-JSON-PARSE",
         "category": "Correctness",
         "regex": re.compile(r"""\bJSON\.parse\s*\(\s*(?:req\.|request\.|event\.|body|payload|data|raw|input|msg|content|text)"""),
@@ -342,8 +350,24 @@ RULES = [
         "severity_hint": "Medium",
         "explanation": "DEBUG mode enabled exposes detailed tracebacks and interactive debuggers."
     },
+    {
+        "id": "PY-CONC-GLOBAL-STATE",
+        "category": "Concurrency",
+        "regex": re.compile(r"""\bglobal\s+[a-zA-Z0-9_]*(?:cache|session|user|state|store|cart|order|requests)\b""", re.I),
+        "languages": [".py"],
+        "severity_hint": "Medium",
+        "explanation": "Mutating global state inside web request handlers causes data leaks across concurrent threads/workers."
+    },
 
     # --- Go Rules ---
+    {
+        "id": "GO-CONC-LOOP-CLOSURE",
+        "category": "Concurrency",
+        "regex": re.compile(r"""\bgo\s+func\s*\(\s*\)\s*\{"""),
+        "languages": [".go"],
+        "severity_hint": "High",
+        "explanation": "Goroutine closure launched without parameter passing captures outer scope variable, risking data races."
+    },
     {
         "id": "GO-BUG-IGNORED-ERROR",
         "category": "Correctness",

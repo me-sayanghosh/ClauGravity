@@ -494,6 +494,17 @@ class TestFindRiskPatterns(unittest.TestCase):
         self.assertIn("GEN-SEC-GOOGLE-KEY", rule_ids)
         self.assertIn("GEN-SEC-DATABASE-URI", rule_ids)
 
+    def test_concurrency_race_conditions(self):
+        test_js = self.root / "inventory.js"
+        test_js.write_text("product.stock = product.stock - req.body.quantity;\n", encoding="utf-8")
+        hits_js = find_risk_patterns.scan_file(test_js, self.root, find_risk_patterns.RULES)
+        self.assertIn("JS-CONC-RACE-CHECK-THEN-ACT", [h["rule_id"] for h in hits_js])
+
+        test_go = self.root / "worker.go"
+        test_go.write_text("for _, item := range items {\n    go func() {\n        process(item)\n    }()\n}\n", encoding="utf-8")
+        hits_go = find_risk_patterns.scan_file(test_go, self.root, find_risk_patterns.RULES)
+        self.assertIn("GO-CONC-LOOP-CLOSURE", [h["rule_id"] for h in hits_go])
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):
