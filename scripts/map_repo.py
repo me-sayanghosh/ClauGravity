@@ -89,7 +89,7 @@ def detect_frameworks(root, manifests):
     return sorted(list(frameworks))
 
 def load_ignore_patterns(root_dir):
-    patterns = set(DEFAULT_IGNORES)
+    patterns = set(p.rstrip("/") for p in DEFAULT_IGNORES)
     ignore_file = Path(root_dir) / ".claugravityignore"
     if ignore_file.is_file():
         try:
@@ -98,6 +98,8 @@ def load_ignore_patterns(root_dir):
                     line = line.strip()
                     if line and not line.startswith("#"):
                         patterns.add(line)
+                        if line.endswith("/"):
+                            patterns.add(line.rstrip("/"))
         except Exception:
             pass
     return patterns
@@ -108,15 +110,23 @@ def is_ignored(path, root_dir, patterns):
     except ValueError:
         return False
     parts = rel.parts
+    rel_str = str(rel).replace(os.sep, "/")
     for p in parts:
         if p in patterns:
             return True
         for pat in patterns:
-            if fnmatch.fnmatch(p, pat):
+            clean_pat = pat.rstrip("/")
+            if p == clean_pat or fnmatch.fnmatch(p, clean_pat):
                 return True
-    rel_str = str(rel).replace(os.sep, "/")
     for pat in patterns:
-        if fnmatch.fnmatch(rel_str, pat) or fnmatch.fnmatch(path.name, pat):
+        clean_pat = pat.rstrip("/")
+        if rel_str == clean_pat or rel_str.startswith(clean_pat + "/"):
+            return True
+        if (fnmatch.fnmatch(rel_str, pat)
+            or fnmatch.fnmatch(rel_str, clean_pat)
+            or fnmatch.fnmatch(rel_str, clean_pat + "/*")
+            or fnmatch.fnmatch(path.name, pat)
+            or fnmatch.fnmatch(path.name, clean_pat)):
             return True
     return False
 

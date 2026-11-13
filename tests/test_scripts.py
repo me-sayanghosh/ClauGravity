@@ -217,6 +217,20 @@ class TestMapRepo(unittest.TestCase):
         self.assertIn("Fastify", data["frameworks"])
         self.assertIn("Svelte", data["frameworks"])
 
+    def test_ignore_trailing_slashes(self):
+        (self.root / ".claugravityignore").write_text("custom_build/\nignored_dir/\n", encoding="utf-8")
+        build_dir = self.root / "custom_build"
+        build_dir.mkdir(parents=True)
+        (build_dir / "bundle.js").write_text("console.log('ignored');\n", encoding="utf-8")
+        src_dir = self.root / "src"
+        src_dir.mkdir(parents=True)
+        (src_dir / "app.js").write_text("console.log('included');\n", encoding="utf-8")
+
+        data = map_repo.analyze_repo(self.root)
+        paths = [f["path"] for f in data["largest_15"]]
+        self.assertIn("src/app.js", paths)
+        self.assertNotIn("custom_build/bundle.js", paths)
+
 
 class TestFindRiskPatterns(unittest.TestCase):
     def setUp(self):
