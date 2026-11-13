@@ -480,6 +480,20 @@ class TestFindRiskPatterns(unittest.TestCase):
         hits_proto = find_risk_patterns.scan_file(test_proto, self.root, find_risk_patterns.RULES)
         self.assertIn("JS-SEC-PROTO-POLLUTION", [h["rule_id"] for h in hits_proto])
 
+    def test_cloud_and_db_secrets_detection(self):
+        test_file = self.root / "cloud_config.py"
+        test_file.write_text(
+            'OPENAI_API_KEY = "sk-proj-123456789012345678901234567890"\n'
+            'GOOGLE_KEY = "AIzaSyDa-123456789012345678901234567"\n'
+            'DATABASE_URL = "postgres://admin:SuperSecretPass123@db.prod.internal:5432/mydb"\n',
+            encoding="utf-8"
+        )
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("GEN-SEC-OPENAI-KEY", rule_ids)
+        self.assertIn("GEN-SEC-GOOGLE-KEY", rule_ids)
+        self.assertIn("GEN-SEC-DATABASE-URI", rule_ids)
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):

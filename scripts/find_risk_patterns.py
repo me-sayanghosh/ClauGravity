@@ -445,6 +445,46 @@ RULES = [
         "explanation": "Hard-coded Slack Bot or User token detected."
     },
     {
+        "id": "GEN-SEC-GOOGLE-KEY",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(AIza[0-9A-Za-z-_]{32,36})\b"""),
+        "languages": [],
+        "severity_hint": "High",
+        "explanation": "Hard-coded Google Cloud or Firebase API key detected."
+    },
+    {
+        "id": "GEN-SEC-OPENAI-KEY",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(sk-[a-zA-Z0-9_-]{20,}|sk-proj-[a-zA-Z0-9_-]{20,})\b"""),
+        "languages": [],
+        "severity_hint": "Critical",
+        "explanation": "Hard-coded OpenAI or AI service API secret key detected."
+    },
+    {
+        "id": "GEN-SEC-DATABASE-URI",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(?:postgres|postgresql|mysql|mongodb(?:\+srv)?|redis)://[a-zA-Z0-9_.-]+:[^@\s/]{3,}@[a-zA-Z0-9_.-]+""", re.I),
+        "languages": [],
+        "severity_hint": "High",
+        "explanation": "Database connection URI containing hard-coded plaintext password."
+    },
+    {
+        "id": "GEN-SEC-SLACK-WEBHOOK",
+        "category": "Secrets",
+        "regex": re.compile(r"""https://hooks\.slack\.com/services/T[0-9A-Z_]{8,}/B[0-9A-Z_]{8,}/[0-9a-zA-Z_]{20,}"""),
+        "languages": [],
+        "severity_hint": "High",
+        "explanation": "Hard-coded Slack incoming webhook URL with embedded authentication token."
+    },
+    {
+        "id": "GEN-SEC-JWT-LITERAL",
+        "category": "Secrets",
+        "regex": re.compile(r"""\b(eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})\b"""),
+        "languages": [],
+        "severity_hint": "High",
+        "explanation": "Hard-coded signed JSON Web Token (JWT) committed in source."
+    },
+    {
         "id": "GEN-SEC-PRIVATE-KEY",
         "category": "Secrets",
         "regex": re.compile(r"""-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"""),
