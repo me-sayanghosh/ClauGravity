@@ -505,6 +505,17 @@ class TestFindRiskPatterns(unittest.TestCase):
         hits_go = find_risk_patterns.scan_file(test_go, self.root, find_risk_patterns.RULES)
         self.assertIn("GO-CONC-LOOP-CLOSURE", [h["rule_id"] for h in hits_go])
 
+    def test_memory_and_resource_leaks(self):
+        test_cache = self.root / "cache.js"
+        test_cache.write_text("const sessionCache = new Map();\n", encoding="utf-8")
+        hits_cache = find_risk_patterns.scan_file(test_cache, self.root, find_risk_patterns.RULES)
+        self.assertIn("GEN-PERF-UNBOUNDED-CACHE", [h["rule_id"] for h in hits_cache])
+
+        test_py = self.root / "file_leak.py"
+        test_py.write_text("fd = open('/tmp/test.txt', 'r')\n", encoding="utf-8")
+        hits_py = find_risk_patterns.scan_file(test_py, self.root, find_risk_patterns.RULES)
+        self.assertIn("PY-RES-UNCLOSED-FILE", [h["rule_id"] for h in hits_py])
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):

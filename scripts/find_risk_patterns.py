@@ -213,6 +213,22 @@ RULES = [
         "explanation": "Database find() without explicit limit risks high memory consumption on large collections."
     },
     {
+        "id": "JS-PERF-LISTENER-LEAK",
+        "category": "Reliability",
+        "regex": re.compile(r"""\b(?:\w+\.)?(?:addListener|on)\s*\(\s*['"`](?:message|data|connection|response|close)['"`]\s*,\s*(?:async\s+)?(?:function|\([^)]*\)\s*=>)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "Registering event listeners repeatedly inside handlers or scopes without cleanup causes memory leaks."
+    },
+    {
+        "id": "GEN-PERF-UNBOUNDED-CACHE",
+        "category": "Reliability",
+        "regex": re.compile(r"""(?:(?:const|let|var)\s+(?:cache|memoStore|sessionCache|userCache)\s*=\s*(?:\{\s*\}|new\s+Map\(\)))"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx", ".py"],
+        "severity_hint": "Medium",
+        "explanation": "Unbounded in-memory cache/Map without size limits or TTL eviction leads to Process Out-Of-Memory (OOM)."
+    },
+    {
         "id": "JS-SEC-TLS-DISABLED",
         "category": "Security",
         "regex": re.compile(r"""(?:rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*=\s*["']?0)"""),
@@ -357,6 +373,14 @@ RULES = [
         "languages": [".py"],
         "severity_hint": "Medium",
         "explanation": "Mutating global state inside web request handlers causes data leaks across concurrent threads/workers."
+    },
+    {
+        "id": "PY-RES-UNCLOSED-FILE",
+        "category": "Reliability",
+        "regex": re.compile(r"""^\s*[a-zA-Z0-9_]+\s*=\s*open\s*\([^)\n]+\)(?!\s*as\b)"""),
+        "languages": [".py"],
+        "severity_hint": "Medium",
+        "explanation": "Opening file descriptor without context manager (with open(...)) risks file descriptor leakage."
     },
 
     # --- Go Rules ---
@@ -555,6 +579,14 @@ RULES = [
         "languages": [".py", ".java", ".js", ".ts"],
         "severity_hint": "High",
         "explanation": "XML parser configured without disabling external entity resolution enables XML External Entity (XXE) attacks."
+    },
+    {
+        "id": "GEN-SEC-REDOS-VULN",
+        "category": "Security",
+        "regex": re.compile(r"""(?:re\.compile|RegExp)\s*\(\s*r?['"`][^'"`]*\([^)]*[\+\*][^)]*\)[\+\*]"""),
+        "languages": [".py", ".js", ".ts"],
+        "severity_hint": "High",
+        "explanation": "Regular expression with nested quantifiers triggers Catastrophic Backtracking and ReDoS."
     }
 ]
 
