@@ -614,6 +614,24 @@ class TestChunkPlan(unittest.TestCase):
         self.assertTrue(plan["total_chunks"] >= 1)
         self.assertEqual(plan["chunks"][0]["name"], "src/routes")
 
+    def test_monorepo_chunking_and_markdown_export(self):
+        pkg_auth = self.root / "packages" / "auth" / "src"
+        pkg_auth.mkdir(parents=True)
+        (pkg_auth / "token.js").write_text("// auth token session\n" * 10, encoding="utf-8")
+
+        pkg_bill = self.root / "packages" / "billing" / "src"
+        pkg_bill.mkdir(parents=True)
+        (pkg_bill / "stripe.js").write_text("// billing stripe pay\n" * 10, encoding="utf-8")
+
+        plan = chunk_plan.generate_chunks(self.root)
+        chunk_names = [c["name"] for c in plan["chunks"]]
+        self.assertIn("packages/auth", chunk_names)
+        self.assertIn("packages/billing", chunk_names)
+
+        md = chunk_plan.generate_markdown_plan(plan)
+        self.assertIn("# ClauGravity Audit Chunk Plan", md)
+        self.assertIn("packages/auth", md)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -52,15 +52,19 @@ RISK_WEIGHTS = {
     "auth": 100,
     "payment": 90,
     "db": 75,
+    "security": 70,
     "routes": 60,
+    "queue": 55,
     "io": 50
 }
 
 KEYWORD_MAP = {
-    "auth": ["auth", "session", "jwt", "user", "login", "token", "permission", "rbac"],
+    "auth": ["auth", "session", "jwt", "user", "login", "token", "permission", "rbac", "oauth", "password", "credential"],
     "payment": ["pay", "billing", "stripe", "invoice", "subscript", "checkout", "wallet", "balance", "pric", "fee", "cost", "money", "currency", "tax"],
-    "db": ["db", "model", "schema", "repositor", "database", "store", "migrat", "entity"],
+    "db": ["db", "model", "schema", "repositor", "database", "store", "migrat", "entity", "query", "sql"],
+    "security": ["crypto", "cipher", "secret", "cert", "hash", "sign", "sanitize", "guard", "firewall", "cors"],
     "routes": ["route", "controller", "api", "endpoint", "handler", "view", "router"],
+    "queue": ["queue", "worker", "job", "celery", "bull", "kafka", "rabbit", "task", "consumer", "producer"],
     "io": ["upload", "file", "process", "exec", "download", "storage", "fs", "stream"]
 }
 
@@ -201,6 +205,8 @@ def generate_chunks(target_path, max_chunks=8, max_files_per_chunk=25):
                 module_name = "root"
             elif rel_parts[0] in {"src", "lib", "app", "pkg"} and len(rel_parts) > 2:
                 module_name = f"{rel_parts[0]}/{rel_parts[1]}"
+            elif rel_parts[0] in {"packages", "apps", "services", "modules"} and len(rel_parts) > 2:
+                module_name = f"{rel_parts[0]}/{rel_parts[1]}"
             else:
                 module_name = rel_parts[0]
 
@@ -254,6 +260,23 @@ def generate_chunks(target_path, max_chunks=8, max_files_per_chunk=25):
         "chunks": chunks
     }
 
+def generate_markdown_plan(data):
+    lines = [
+        f"# ClauGravity Audit Chunk Plan",
+        f"**Target:** `{data['target']}` | **Total Chunks:** {data['total_chunks']}\n",
+        "| Chunk | Module / Scope | Risk Score | Files | LOC | Primary Files |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |"
+    ]
+    for c in data["chunks"]:
+        top_files = ", ".join(f"`{f}`" for f in c["files"][:3])
+        if len(c["files"]) > 3:
+            top_files += f" (+{len(c['files']) - 3} more)"
+        lines.append(f"| #{c['chunk_id']:02d} | `{c['name']}` | **{c['risk_score']}** | {c['file_count']} | {c['total_loc']} | {top_files} |")
+
+    lines.append("\n## Audit Sequence Guidance")
+    lines.append("Audit each chunk strictly in priority order. After auditing each chunk, record confirmed findings and update `.claugravity/notes.md`.")
+    return "\n".join(lines) + "\n"
+
 def print_plan(data):
     print("=" * 70)
     print(f"CLAUGRAVITY AUDIT CHUNK PLAN: {data['target']}")
@@ -278,14 +301,41 @@ def main():
     parser.add_argument("path", nargs="?", default=".", help="Root directory of repository (default: .)")
     parser.add_argument("--max-chunks", type=int, default=8, help="Maximum number of review chunks to output (default: 8)")
     parser.add_argument("--json", action="store_true", help="Output plan in JSON format")
+    parser.add_argument("--format", choices=["text", "json", "markdown"], default="text", help="Output format (default: text)")
+    parser.add_argument("--output", "-o", type=str, default=None, help="Output destination file path")
     args = parser.parse_args()
 
     plan = generate_chunks(args.path, max_chunks=args.max_chunks)
+    fmt = "json" if args.json else args.format
 
-    if args.json:
-        print(json.dumps(plan, indent=2))
+    if fmt == "json":
+        output_str = json.dumps(plan, indent=2)
+    elif fmt == "markdown":
+        output_str = generate_markdown_plan(plan)
     else:
-        print_plan(plan)
+        output_str = None
+
+    if args.output:
+        out_p = Path(args.output).resolve()
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        if output_str is not None:
+            out_p.write_text(output_str, encoding="utf-8")
+        else:
+            import io
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                print_plan(plan)
+            finally:
+                sys.stdout = old_stdout
+            out_p.write_text(buf.getvalue(), encoding="utf-8")
+        print(f"Chunk plan written to {args.output}")
+    else:
+        if output_str is not None:
+            print(output_str)
+        else:
+            print_plan(plan)
 
 if __name__ == "__main__":
     main()
