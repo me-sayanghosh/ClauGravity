@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "scripts"))
 
 import chunk_plan
+import diff_audit
 import find_risk_patterns
 import map_repo
 import run_checks
@@ -643,6 +644,40 @@ class TestChunkPlan(unittest.TestCase):
         md = chunk_plan.generate_markdown_plan(plan)
         self.assertIn("# ClauGravity Audit Chunk Plan", md)
         self.assertIn("packages/auth", md)
+
+
+class TestDiffAudit(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_parse_diff_hunks_and_verdict(self):
+        sample_diff = """diff --git a/src/auth.js b/src/auth.js
+index 1111111..2222222 100644
+--- a/src/auth.js
++++ b/src/auth.js
+@@ -10,0 +11,2 @@
++const user = eval(input);
++return user;
+"""
+        hunks = diff_audit.parse_diff_hunks(sample_diff)
+        self.assertIn("src/auth.js", hunks)
+        self.assertIn(11, hunks["src/auth.js"])
+        self.assertIn(12, hunks["src/auth.js"])
+
+        # Write file with eval vulnerability on line 11
+        src_dir = self.root / "src"
+        src_dir.mkdir(parents=True)
+        file_lines = ["// line\n"] * 10 + ["const user = eval(input);\n", "return user;\n"]
+        (src_dir / "auth.js").write_text("".join(file_lines), encoding="utf-8")
+
+        result = diff_audit.audit_diff(target_dir=self.root, diff_text=sample_diff)
+        self.assertEqual(result["verdict"], "BLOCK")
+        self.assertTrue(len(result["hits"]) >= 1)
+        self.assertEqual(result["hits"][0]["rule_id"], "JS-SEC-EVAL")
 
 
 if __name__ == "__main__":
