@@ -241,6 +241,17 @@ class TestMapRepo(unittest.TestCase):
         self.assertIn("Fastify", data["frameworks"])
         self.assertIn("Svelte", data["frameworks"])
 
+    def test_framework_detection_rust_and_ts_entrypoints(self):
+        (self.root / "Cargo.toml").write_text('[dependencies]\naxum = "0.7"\ntokio = "1.0"\n', encoding="utf-8")
+        src_dir = self.root / "src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        (src_dir / "server.ts").write_text("console.log('TS server');\n", encoding="utf-8")
+
+        data = map_repo.analyze_repo(self.root)
+        self.assertIn("Axum", data["frameworks"])
+        self.assertIn("Tokio", data["frameworks"])
+        self.assertIn("src/server.ts", data["entry_points"])
+
     def test_ignore_trailing_slashes(self):
         (self.root / ".claugravityignore").write_text("custom_build/\nignored_dir/\n", encoding="utf-8")
         build_dir = self.root / "custom_build"

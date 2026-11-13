@@ -51,11 +51,18 @@ BINARY_EXTENSIONS = {
 
 EXT_LANG_MAP = {
     ".js": "JavaScript", ".jsx": "JavaScript (React)",
+    ".mjs": "JavaScript (ESM)", ".cjs": "JavaScript (CommonJS)",
     ".ts": "TypeScript", ".tsx": "TypeScript (React)",
+    ".mts": "TypeScript (ESM)", ".cts": "TypeScript (CommonJS)",
     ".py": "Python", ".go": "Go", ".java": "Java",
     ".kt": "Kotlin", ".cs": "C#", ".php": "PHP",
     ".rb": "Ruby", ".rs": "Rust", ".c": "C", ".cpp": "C++",
-    ".html": "HTML", ".css": "CSS", ".sql": "SQL", ".sh": "Shell"
+    ".html": "HTML", ".css": "CSS", ".sql": "SQL",
+    ".sh": "Shell", ".bash": "Shell", ".zsh": "Shell",
+    ".vue": "Vue", ".svelte": "Svelte", ".astro": "Astro",
+    ".scala": "Scala", ".swift": "Swift", ".sol": "Solidity",
+    ".graphql": "GraphQL", ".proto": "Protobuf",
+    ".json": "JSON", ".yaml": "YAML", ".yml": "YAML", ".toml": "TOML"
 }
 
 ROUTE_REGEXES = [
@@ -94,17 +101,51 @@ def detect_frameworks(root, manifests):
         try:
             content = mpath.read_text(encoding="utf-8", errors="ignore").lower()
             if m.endswith("package.json"):
-                for fw in ["express", "react", "next", "vue", "fastify", "nestjs", "koa", "angular", "svelte"]:
-                    if f'"{fw}"' in content or (fw == "nestjs" and "@nestjs/" in content) or (fw == "angular" and "@angular/" in content) or (fw == "fastify" and "@fastify/" in content) or (fw == "svelte" and "@sveltejs/" in content):
-                        frameworks.add(fw.capitalize() if fw != "next" else "Next.js")
-            elif m.endswith((".txt", ".toml", ".py", ".cfg", "Pipfile")):
-                for fw in ["django", "flask", "fastapi", "tornado", "pyramid"]:
-                    if fw in content:
-                        frameworks.add(fw.capitalize() if fw != "fastapi" else "FastAPI")
+                npm_map = {
+                    "express": "Express", "react": "React", "next": "Next.js",
+                    "vue": "Vue", "fastify": "Fastify", "nestjs": "Nestjs",
+                    "koa": "Koa", "angular": "Angular", "svelte": "Svelte",
+                    "astro": "Astro", "remix": "Remix", "nuxt": "Nuxt",
+                    "hono": "Hono", "prisma": "Prisma", "drizzle-orm": "Drizzle",
+                    "typeorm": "TypeORM", "mongoose": "Mongoose", "electron": "Electron",
+                    "tailwindcss": "TailwindCSS", "graphql": "GraphQL"
+                }
+                for key, name in npm_map.items():
+                    if (f'"{key}"' in content
+                        or f'"@{key}/' in content
+                        or (key == "svelte" and ("@sveltejs/" in content or '"svelte"' in content))
+                        or (key == "next" and '"next"' in content)):
+                        frameworks.add(name)
+            elif m.endswith("Cargo.toml"):
+                rust_map = {
+                    "actix-web": "Actix-Web", "axum": "Axum", "rocket": "Rocket",
+                    "tokio": "Tokio", "diesel": "Diesel", "sqlx": "sqlx"
+                }
+                for key, name in rust_map.items():
+                    if key in content:
+                        frameworks.add(name)
+            elif m.endswith(("pyproject.toml", "requirements.txt", "Pipfile", "setup.py", "setup.cfg")) or "requirements" in m:
+                py_map = {
+                    "django": "Django", "flask": "Flask", "fastapi": "FastAPI",
+                    "tornado": "Tornado", "pyramid": "Pyramid", "celery": "Celery",
+                    "sqlalchemy": "SQLAlchemy", "pydantic": "Pydantic", "alembic": "Alembic"
+                }
+                for key, name in py_map.items():
+                    if key in content:
+                        frameworks.add(name)
             elif m.endswith("go.mod"):
-                for fw in ["gin", "fiber", "echo", "chi"]:
-                    if fw in content:
-                        frameworks.add(fw.capitalize())
+                go_map = {
+                    "gin": "Gin", "fiber": "Fiber", "echo": "Echo", "chi": "Chi",
+                    "gorm": "GORM", "sqlx": "sqlx", "grpc": "gRPC"
+                }
+                for key, name in go_map.items():
+                    if key in content:
+                        frameworks.add(name)
+            elif m.endswith("Gemfile"):
+                if "rails" in content:
+                    frameworks.add("Ruby on Rails")
+                elif "sinatra" in content:
+                    frameworks.add("Sinatra")
             elif m.endswith(("pom.xml", "build.gradle", "build.gradle.kts")):
                 if "spring" in content:
                     frameworks.add("Spring Boot")
@@ -266,7 +307,11 @@ def analyze_repo(target_path, max_depth=6):
             if "test" in rel_str.lower() or "spec" in rel_str.lower():
                 test_dirs.add(str(fpath.parent.relative_to(root)).replace(os.sep, "/"))
 
-            if (fname in {"server.js", "app.js", "index.js", "main.go", "app.py", "main.py", "wsgi.py", "asgi.py"}
+            if (fname in {
+                    "server.js", "app.js", "index.js", "server.ts", "app.ts", "index.ts",
+                    "main.go", "app.py", "main.py", "wsgi.py", "asgi.py", "manage.py",
+                    "main.rs", "lib.rs", "Program.cs", "Startup.cs"
+                }
                 or fname.startswith("main.")
                 or (len(rel_dir.parts) <= 1 and fname.startswith("index."))
                 or "cmd" in rel_dir.parts):
