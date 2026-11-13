@@ -282,6 +282,14 @@ class TestFindRiskPatterns(unittest.TestCase):
         rule_ids = [h["rule_id"] for h in hits]
         self.assertIn("JS-SEC-SQL", rule_ids)
 
+    def test_multiline_sql_template_injection(self):
+        test_file = self.root / "multiline_query.js"
+        test_file.write_text("const res = await db.query(\n  `SELECT * FROM orders\n   WHERE order_id = ${req.body.id}`\n);\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_file, self.root, find_risk_patterns.RULES)
+        rule_ids = [h["rule_id"] for h in hits]
+        self.assertIn("JS-SEC-SQL", rule_ids)
+        self.assertEqual(hits[0]["line_number"], 1)
+
     def test_nosql_spread_injection(self):
         test_file = self.root / "auth.js"
         test_file.write_text("const user = await User.find({ ...req.body });\n", encoding="utf-8")

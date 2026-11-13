@@ -74,6 +74,8 @@ RULES = [
         "id": "JS-SEC-EVAL",
         "category": "Security",
         "regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process|cp)\.(?:exec|execSync)\s*\(|\bexecSync\s*\(|(?<!\.)\bexec\s*\(\s*`|(?<!\.)\bexec\s*\(\s*(?:["'][^"']*["']\s*\+|[^"'\`\s)]+))"""),
+        "multiline_regex": re.compile(r"""\b(?:eval\s*\(|new\s+Function\s*\(|(?:child_process|cp)\.(?:exec|execSync)\s*\(\s*`[^`]*\$\{|(?<!\.)\bexec\s*\(\s*`[^`]*\$\{)""", re.DOTALL),
+        "multiline_trigger": re.compile(r"""\b(?:eval|new\s+Function|(?:child_process|cp)\.(?:exec|execSync)|exec|execSync)\s*\("""),
         "languages": [".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
         "severity_hint": "Critical",
         "explanation": "Dynamic code or shell execution with variable input allows arbitrary code execution."
@@ -82,6 +84,8 @@ RULES = [
         "id": "JS-SEC-SQL",
         "category": "Security",
         "regex": re.compile(r"""(?:query|execute)\s*\(\s*(?:`[^`]*\$\{[^}]+\}|["'][^"']*(?:SELECT|INSERT|UPDATE|DELETE)[^"']*["']\s*\+)""", re.I),
+        "multiline_regex": re.compile(r"""(?:query|execute)\s*\(\s*(?:`[^`]*\$\{[^}]+\}|["'][^"']*(?:SELECT|INSERT|UPDATE|DELETE)[^"']*["']\s*\+)""", re.I | re.DOTALL),
+        "multiline_trigger": re.compile(r"""\b(?:query|execute)\s*\(""", re.I),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Critical",
         "explanation": "SQL query built via string interpolation or concatenation instead of parameterization."
@@ -146,6 +150,8 @@ RULES = [
         "id": "JS-SEC-CORS-PERMISSIVE",
         "category": "Security",
         "regex": re.compile(r"""(?:cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)|origin\s*:\s*["']\*["']|Access-Control-Allow-Origin['"]?\s*,\s*['"]\*)"""),
+        "multiline_regex": re.compile(r"""cors\s*\(\s*\{[^}]*origin\s*:\s*(?:["']\*["']|true)""", re.DOTALL),
+        "multiline_trigger": re.compile(r"""\bcors\s*\("""),
         "languages": [".js", ".ts", ".jsx", ".tsx"],
         "severity_hint": "Medium",
         "explanation": "Overly permissive CORS configuration allows arbitrary third-party origins to access responses."
@@ -628,10 +634,15 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
                     continue
 
                 m = rule["regex"].search(line)
+                if not m and "multiline_trigger" in rule and "multiline_regex" in rule:
+                    if rule["multiline_trigger"].search(line):
+                        window = "".join(lines[line_no - 1 : min(len(lines), line_no + 12)])
+                        m = rule["multiline_regex"].search(window)
+
                 if m:
                     if is_placeholder_secret(m, rule):
                         continue
-                    clean_line = redact_secrets(line.strip()[:160], rule)
+                    clean_line = redact_secrets(" ".join(line.strip().split())[:160], rule)
                     hits.append({
                         "rule_id": rule["id"],
                         "category": rule["category"],
