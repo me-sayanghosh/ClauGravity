@@ -516,6 +516,17 @@ class TestFindRiskPatterns(unittest.TestCase):
         hits_py = find_risk_patterns.scan_file(test_py, self.root, find_risk_patterns.RULES)
         self.assertIn("PY-RES-UNCLOSED-FILE", [h["rule_id"] for h in hits_py])
 
+    def test_python_security_cve_and_mktemp(self):
+        test_tar = self.root / "archive.py"
+        test_tar.write_text("tar.extractall('/tmp/extracted')\n", encoding="utf-8")
+        hits_tar = find_risk_patterns.scan_file(test_tar, self.root, find_risk_patterns.RULES)
+        self.assertIn("PY-SEC-TARFILE-TRAVERSAL", [h["rule_id"] for h in hits_tar])
+
+        test_tmp = self.root / "temp.py"
+        test_tmp.write_text("path = tempfile.mktemp()\n", encoding="utf-8")
+        hits_tmp = find_risk_patterns.scan_file(test_tmp, self.root, find_risk_patterns.RULES)
+        self.assertIn("PY-SEC-INSECURE-TEMPFILE", [h["rule_id"] for h in hits_tmp])
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):

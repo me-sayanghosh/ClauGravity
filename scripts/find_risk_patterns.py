@@ -382,6 +382,30 @@ RULES = [
         "severity_hint": "Medium",
         "explanation": "Opening file descriptor without context manager (with open(...)) risks file descriptor leakage."
     },
+    {
+        "id": "PY-SEC-TARFILE-TRAVERSAL",
+        "category": "Security",
+        "regex": re.compile(r"""\.extractall\s*\((?:(?!filter\s*=\s*['"]data['"]).)*\)"""),
+        "languages": [".py"],
+        "severity_hint": "High",
+        "explanation": "Calling tarfile.extractall() without a safe filter (filter='data') enables arbitrary file overwrite via directory traversal (CVE-2007-4559)."
+    },
+    {
+        "id": "PY-SEC-INSECURE-TEMPFILE",
+        "category": "Security",
+        "regex": re.compile(r"""tempfile\.mktemp\s*\("""),
+        "languages": [".py"],
+        "severity_hint": "High",
+        "explanation": "tempfile.mktemp() creates race conditions between name generation and file creation; use tempfile.NamedTemporaryFile() instead."
+    },
+    {
+        "id": "PY-SEC-COMMAND-FORMAT",
+        "category": "Security",
+        "regex": re.compile(r"""os\.(?:system|popen)\s*\(\s*(?:f['"]|['"].*?%|['"].*?\+|[a-zA-Z0-9_]+\b)"""),
+        "languages": [".py"],
+        "severity_hint": "Critical",
+        "explanation": "Executing shell commands via os.system or os.popen with dynamic variables permits command injection."
+    },
 
     # --- Go Rules ---
     {
