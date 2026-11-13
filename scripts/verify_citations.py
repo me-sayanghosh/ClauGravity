@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 LOCATION_REGEX = re.compile(r"""\*\*Location:\*\*\s*(?:\[`?|[`"<])?([a-zA-Z0-9_./\\-]+(?::\s*L?\d+(?:\s*-\s*L?\d+)?)?)(?:`?\](?:\([^)]*\))?|[`">])?""")
-EVIDENCE_REGEX = re.compile(r"""\*\*Evidence:\*\*\s*```[a-zA-Z0-9_-]*[ \t]*\r?\n(.*?)```""", re.DOTALL)
+EVIDENCE_REGEX = re.compile(r"""\*\*Evidence:\*\*(?:[^\n`]*\r?\n\s*)*?(`{3,4})[a-zA-Z0-9_-]*[ \t]*\r?\n(.*?)\1""", re.DOTALL)
 FINDING_HEADER_REGEX = re.compile(r"""^#{2,4}\s+(?:\[?([A-Za-z0-9_-]+)\]?:?|([A-Za-z0-9_-]+:))\s*(.*)$""", re.M)
 
 def normalize_text(text):
@@ -43,7 +43,8 @@ def parse_findings(report_text):
         title = header_match.group(1).strip() if header_match else "Unknown Finding"
 
         loc_str = loc_match.group(1).strip()
-        evidence_str = evi_match.group(1)
+        groups = evi_match.groups()
+        evidence_str = groups[1] if len(groups) >= 2 else groups[0]
 
         findings.append({
             "title": title,
@@ -124,9 +125,17 @@ def verify_single_citation(finding, root_dir, tolerance=5):
     if evidence_lines and all(any(el in wl for wl in window_lines) for el in evidence_lines):
         return True, "Verified line subset match"
 
+    # Search the broader file to report actionable diagnostics if line numbers drifted
+    full_text = normalize_text("".join(file_lines))
+    if norm_evidence in full_text:
+        first_evi = evidence_lines[0] if evidence_lines else norm_evidence
+        for idx, fl in enumerate(file_lines, start=1):
+            if first_evi in normalize_text(fl):
+                return False, f"Excerpt text not found in lines {search_start}-{search_end} (candidate found near line {idx}; adjust citation range)"
+
     return False, f"Excerpt text not found in lines {search_start}-{search_end}"
 
-def verify_report(report_path, root_path=".", tolerance=5, as_json=False):
+def verify_report(report_path, root_path=".", tolerance=5, as_json=False, output_path=None):
     report_file = Path(report_path).resolve()
     root_dir = Path(root_path).resolve()
 
@@ -140,7 +149,7 @@ def verify_report(report_path, root_path=".", tolerance=5, as_json=False):
 
     findings = parse_findings(text)
 
-    if not as_json:
+    if not as_json and not output_path:
         print("=" * 70)
         print(f"CLAUGRAVITY CITATION VERIFIER")
         print(f"Report: {report_file}")
@@ -149,17 +158,22 @@ def verify_report(report_path, root_path=".", tolerance=5, as_json=False):
         print("=" * 70)
 
     if not findings:
-        if as_json:
-            print(json.dumps({
-                "report": str(report_file),
-                "root": str(root_dir),
-                "total_citations": 0,
-                "passed": 0,
-                "failed": 0,
-                "all_passed": False,
-                "citations": [],
-                "error": "No finding citations matching template layout were found in report."
-            }, indent=2))
+        res_data = {
+            "report": str(report_file),
+            "root": str(root_dir),
+            "total_citations": 0,
+            "passed": 0,
+            "failed": 0,
+            "all_passed": False,
+            "citations": [],
+            "error": "No finding citations matching template layout were found in report."
+        }
+        if as_json or output_path:
+            out_str = json.dumps(res_data, indent=2)
+            if output_path:
+                Path(output_path).resolve().write_text(out_str, encoding="utf-8")
+            if as_json:
+                print(out_str)
         else:
             print("Warning: No finding citations matching template layout were found in report.")
             print("Expected format: **Location:** `path:line` followed by **Evidence:** and fenced code block.")
@@ -182,28 +196,37 @@ def verify_report(report_path, root_path=".", tolerance=5, as_json=False):
         })
         if ok:
             pass_count += 1
-            if not as_json:
+            if not as_json and not output_path:
                 print(f"[{status}] Finding #{idx}: {f['raw_location']}")
                 print(f"       {f['title']}")
         else:
             fail_count += 1
             all_passed = False
-            if not as_json:
+            if not as_json and not output_path:
                 print(f"[{status}] Finding #{idx}: {f['raw_location']}")
                 print(f"       {f['title']}")
                 print(f"       Reason: {reason}")
 
+    summary_data = {
+        "report": str(report_file),
+        "root": str(root_dir),
+        "total_citations": len(findings),
+        "passed": pass_count,
+        "failed": fail_count,
+        "all_passed": all_passed,
+        "citations": results
+    }
+
+    if output_path:
+        out_p = Path(output_path).resolve()
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        out_p.write_text(json.dumps(summary_data, indent=2), encoding="utf-8")
+        if not as_json:
+            print(f"Verification results written to {output_path}")
+
     if as_json:
-        print(json.dumps({
-            "report": str(report_file),
-            "root": str(root_dir),
-            "total_citations": len(findings),
-            "passed": pass_count,
-            "failed": fail_count,
-            "all_passed": all_passed,
-            "citations": results
-        }, indent=2))
-    else:
+        print(json.dumps(summary_data, indent=2))
+    elif not output_path:
         print("-" * 70)
         print(f"SUMMARY: {pass_count} Passed | {fail_count} Failed")
         print("=" * 70)
@@ -216,9 +239,10 @@ def main():
     parser.add_argument("--root", default=".", help="Root directory of audited project (default: .)")
     parser.add_argument("--tolerance", type=int, default=5, help="Line search tolerance window (default: 5)")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    parser.add_argument("--output", "-o", type=str, default=None, help="Save verification report JSON to file")
     args = parser.parse_args()
 
-    passed = verify_report(args.report, root_path=args.root, tolerance=args.tolerance, as_json=args.json)
+    passed = verify_report(args.report, root_path=args.root, tolerance=args.tolerance, as_json=args.json, output_path=args.output)
     sys.exit(0 if passed else 1)
 
 if __name__ == "__main__":

@@ -144,6 +144,18 @@ console.log("bye");
         self.assertEqual(findings[0]["title"], "[CG-001]: Level Two Finding")
         self.assertEqual(findings[1]["title"], "[CG-002]: Level Four Finding")
 
+    def test_offset_diagnostic_candidate_line(self):
+        target_file = self.root / "offset.js"
+        target_file.write_text("line 1\nline 2\nline 3\nline 4\nline 5\nconst secretTarget = 100;\n", encoding="utf-8")
+        finding = {
+            "title": "Offset Diagnostic Test",
+            "raw_location": "offset.js:1-2",
+            "evidence": "const secretTarget = 100;"
+        }
+        ok, reason = verify_citations.verify_single_citation(finding, self.root, tolerance=1)
+        self.assertFalse(ok)
+        self.assertIn("candidate found near line 6", reason)
+
 
 class TestMapRepo(unittest.TestCase):
     def setUp(self):
