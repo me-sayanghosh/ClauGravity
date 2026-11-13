@@ -16,6 +16,7 @@ sys.path.insert(0, str(REPO_ROOT / "scripts"))
 import chunk_plan
 import diff_audit
 import find_risk_patterns
+import generate_report
 import map_repo
 import run_checks
 import verify_citations
@@ -678,6 +679,38 @@ index 1111111..2222222 100644
         self.assertEqual(result["verdict"], "BLOCK")
         self.assertTrue(len(result["hits"]) >= 1)
         self.assertEqual(result["hits"][0]["rule_id"], "JS-SEC-EVAL")
+
+
+class TestGenerateReport(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_scaffold_report_structure_and_citations(self):
+        (self.root / "app.js").write_text("console.log('hello');\nconst x = 42;\n", encoding="utf-8")
+        leads = [{
+            "rule_id": "JS-SEC-EVAL",
+            "title": "Dynamic Eval Injection",
+            "location": "app.js:2",
+            "line_snippet": "const x = 42;",
+            "severity": "Critical",
+            "category": "Security",
+            "explanation": "Dynamic code execution allows arbitrary command execution."
+        }]
+
+        report_md = generate_report.build_report(target_path=self.root, title="Test Report", leads=leads)
+        self.assertIn("# Test Report", report_md)
+        self.assertIn("### [CG-001]: Dynamic Eval Injection", report_md)
+        self.assertIn("- **Location:** `app.js:2`", report_md)
+
+        # Write to report file and verify citation
+        report_file = self.root / "report.md"
+        report_file.write_text(report_md, encoding="utf-8")
+        passed = verify_citations.verify_report(str(report_file), root_path=str(self.root))
+        self.assertTrue(passed)
 
 
 if __name__ == "__main__":
