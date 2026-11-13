@@ -66,6 +66,15 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
 
     results = []
 
+    # Detect Node.js package manager
+    pm = "npm"
+    if (root / "bun.lockb").is_file() or (root / "bun.lock").is_file():
+        pm = "bun" if is_tool_available("bun") else "npm"
+    elif (root / "pnpm-lock.yaml").is_file():
+        pm = "pnpm" if is_tool_available("pnpm") else "npm"
+    elif (root / "yarn.lock").is_file():
+        pm = "yarn" if is_tool_available("yarn") else "npm"
+
     # 1. Node.js / JavaScript Checks
     pkg_json = root / "package.json"
     tsconfig = root / "tsconfig.json"
@@ -76,20 +85,21 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
                 pkg_data = json.load(f)
             scripts = pkg_data.get("scripts", {})
 
-            if "lint" in scripts and is_tool_available("npm"):
-                res = run_cmd(["npm", "run", "lint", "--silent"], cwd=root, timeout=timeout)
-                results.append({"name": "npm run lint", "tool": "npm", "category": "Linter", **res})
+            if "lint" in scripts and is_tool_available(pm):
+                res = run_cmd([pm, "run", "lint", "--silent"], cwd=root, timeout=timeout)
+                results.append({"name": f"{pm} run lint", "tool": pm, "category": "Linter", **res})
 
-            if "typecheck" in scripts and is_tool_available("npm"):
-                res = run_cmd(["npm", "run", "typecheck", "--silent"], cwd=root, timeout=timeout)
-                results.append({"name": "npm run typecheck", "tool": "npm", "category": "Typechecker", **res})
+            if "typecheck" in scripts and is_tool_available(pm):
+                res = run_cmd([pm, "run", "typecheck", "--silent"], cwd=root, timeout=timeout)
+                results.append({"name": f"{pm} run typecheck", "tool": pm, "category": "Typechecker", **res})
 
             if "test" in scripts:
-                if allow_tests and is_tool_available("npm"):
-                    res = run_cmd(["npm", "test", "--silent"], cwd=root, timeout=timeout)
-                    results.append({"name": "npm test", "tool": "npm", "category": "Tests", **res})
+                if allow_tests and is_tool_available(pm):
+                    test_args = [pm, "test"] if pm == "yarn" else [pm, "test", "--silent"]
+                    res = run_cmd(test_args, cwd=root, timeout=timeout)
+                    results.append({"name": f"{pm} test", "tool": pm, "category": "Tests", **res})
                 else:
-                    results.append({"name": "npm test", "tool": "npm", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Tests available; rerun with --allow-tests to execute."})
+                    results.append({"name": f"{pm} test", "tool": pm, "category": "Tests", "status": "available, not run", "exit_code": 0, "output": f"Tests available in package.json; rerun with --allow-tests to execute."})
         except Exception:
             pass
 
@@ -151,16 +161,28 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
             res = run_cmd(["mypy", "."], cwd=root, timeout=timeout)
             results.append({"name": "mypy", "tool": "mypy", "category": "Typechecker", **res})
 
+        if is_tool_available("bandit"):
+            res = run_cmd(["bandit", "-r", ".", "-ll", "-q"], cwd=root, timeout=timeout)
+            results.append({"name": "bandit", "tool": "bandit", "category": "Security", **res})
+
         if is_tool_available("pip-audit"):
             res = run_cmd(["pip-audit"], cwd=root, timeout=timeout)
             results.append({"name": "pip-audit", "tool": "pip-audit", "category": "Security", **res})
 
+        # Test runner (pytest with fallback to python unittest)
+        has_tests = any(root.glob("**/test_*.py")) or any(root.glob("**/*_test.py")) or (root / "tests").is_dir()
         if is_tool_available("pytest"):
             if allow_tests:
                 res = run_cmd(["pytest", "-q"], cwd=root, timeout=timeout)
                 results.append({"name": "pytest", "tool": "pytest", "category": "Tests", **res})
             else:
                 results.append({"name": "pytest", "tool": "pytest", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Tests available; rerun with --allow-tests to execute."})
+        elif has_tests:
+            if allow_tests:
+                res = run_cmd([sys.executable, "-m", "unittest", "discover", "-s", "."], cwd=root, timeout=timeout)
+                results.append({"name": "python unittest", "tool": "unittest", "category": "Tests", **res})
+            else:
+                results.append({"name": "python unittest", "tool": "unittest", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Unit tests detected; rerun with --allow-tests to execute."})
 
     # 3. Go Checks
     if (root / "go.mod").is_file():
@@ -219,14 +241,32 @@ def main():
     parser.add_argument("--timeout", type=int, default=30, help="Per-command timeout in seconds (default: 30)")
     parser.add_argument("--allow-tests", action="store_true", help="Allow running unit test commands")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    parser.add_argument("--output", "-o", type=str, default=None, help="Save report to file path")
     args = parser.parse_args()
 
     report = execute_checks(args.path, timeout=args.timeout, allow_tests=args.allow_tests)
 
-    if args.json:
-        print(json.dumps(report, indent=2))
+    if args.output:
+        out_p = Path(args.output).resolve()
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        if args.json:
+            out_p.write_text(json.dumps(report, indent=2), encoding="utf-8")
+        else:
+            import io
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                print_text_summary(report)
+            finally:
+                sys.stdout = old_stdout
+            out_p.write_text(buf.getvalue(), encoding="utf-8")
+        print(f"Check results written to {args.output}")
     else:
-        print_text_summary(report)
+        if args.json:
+            print(json.dumps(report, indent=2))
+        else:
+            print_text_summary(report)
 
 if __name__ == "__main__":
     main()

@@ -580,6 +580,17 @@ class TestRunChecks(unittest.TestCase):
         linter_checks = [c for c in report["checks"] if "linter" in c["name"].lower() or "ruff" in c["name"].lower() or "flake8" in c["name"].lower()]
         self.assertTrue(len(linter_checks) > 0)
 
+    def test_python_unittest_fallback(self):
+        tests_dir = self.root / "tests"
+        tests_dir.mkdir(parents=True)
+        (tests_dir / "test_example.py").write_text("import unittest\nclass T(unittest.TestCase):\n    def test_ok(self): pass\n", encoding="utf-8")
+        (self.root / "app.py").write_text("x = 1\n", encoding="utf-8")
+
+        report = run_checks.execute_checks(self.root, allow_tests=True)
+        test_checks = [c for c in report["checks"] if c["category"] == "Tests"]
+        self.assertTrue(len(test_checks) > 0)
+        self.assertIn(test_checks[0]["status"], ("passed", "failed", "available, not run"))
+
 
 class TestChunkPlan(unittest.TestCase):
     def setUp(self):
