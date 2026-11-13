@@ -479,7 +479,9 @@ def is_ignored(path, root_dir, patterns):
     return False
 
 def redact_secrets(snippet, rule):
-    if rule["category"] == "Secrets" or "TOKEN" in rule["id"] or "KEY" in rule["id"] or "PASSWORD" in rule["id"]:
+    rule_id = rule.get("id", "")
+    rule_cat = rule.get("category", "")
+    if rule_cat == "Secrets" or any(k in rule_id for k in ("TOKEN", "KEY", "PASSWORD", "SECRET", "CRED", "AUTH")):
         def repl(match):
             val = match.group(0)
             val_lower = val.lower().strip("\"'\t ")
@@ -489,10 +491,19 @@ def redact_secrets(snippet, rule):
                 return val[:4] + "****"
             return "****"
 
-        snippet = re.sub(r"""\b(?:(?:AKIA|ASIA)[0-9A-Z]{16}|gh[pousr]_[0-9a-zA-Z]{36}|github_pat_[0-9a-zA-Z_]{82}|sk_live_[0-9a-zA-Z]{24,}|xox[baprs]-[0-9a-zA-Z]{10,48})\b""", repl, snippet)
-        snippet = re.sub(r"""((?:password|passwd|pwd|secret)["']?\s*[:=]\s*["'])([^"'\s]{6,})(["'])""",
-                         lambda m: m.group(1) + (m.group(2)[:4] + "****" if m.group(2).lower() not in PLACEHOLDERS and not m.group(2).lower().startswith("example") else m.group(2)) + m.group(3),
-                         snippet, flags=re.I)
+        # Well-known API token patterns
+        snippet = re.sub(
+            r"""\b(?:(?:AKIA|ASIA)[0-9A-Z]{16}|gh[pousr]_[0-9a-zA-Z]{36}|github_pat_[0-9a-zA-Z_]{82}|sk_(?:live|test)_[0-9a-zA-Z]{16,}|sk-[a-zA-Z0-9_-]{16,}|xox[baprs]-[0-9a-zA-Z]{10,48}|AIza[0-9A-Za-z-_]{35}|eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})\b""",
+            repl,
+            snippet
+        )
+        # Assignment patterns: password/secret/token/apiKey = "..."
+        snippet = re.sub(
+            r"""((?:password|passwd|pwd|secret|token|apiKey|api_key|auth_key)["']?\s*[:=]\s*["'])([^"'\s]{6,})(["'])""",
+            lambda m: m.group(1) + (m.group(2)[:4] + "****" if m.group(2).lower() not in PLACEHOLDERS and not m.group(2).lower().startswith("example") else m.group(2)) + m.group(3),
+            snippet,
+            flags=re.I
+        )
     return snippet
 
 def is_placeholder_secret(match, rule):

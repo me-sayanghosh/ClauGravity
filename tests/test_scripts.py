@@ -353,6 +353,19 @@ class TestFindRiskPatterns(unittest.TestCase):
         rule_ids = [h["rule_id"] for h in hits]
         self.assertIn("JS-SEC-LOG-SECRETS", rule_ids)
 
+    def test_redact_secrets_log_and_tokens(self):
+        dummy_rule = {"id": "JS-SEC-LOG-SECRETS", "category": "Security"}
+        snippet = "logger.info('key: sk_live_ABC12345678901234567890');"
+        redacted = find_risk_patterns.redact_secrets(snippet, dummy_rule)
+        self.assertNotIn("sk_live_ABC12345678901234567890", redacted)
+        self.assertIn("sk_l****", redacted)
+
+        dummy_rule_cred = {"id": "GEN-AUTH-CHECK", "category": "Auth"}
+        snippet2 = 'const apiKey = "super_secret_production_key_12345";'
+        redacted2 = find_risk_patterns.redact_secrets(snippet2, dummy_rule_cred)
+        self.assertNotIn("super_secret_production_key_12345", redacted2)
+        self.assertIn("supe****", redacted2)
+
     def test_python_debug_lowercase(self):
         test_file = self.root / "app.py"
         test_file.write_text("app.run(debug=True)\n", encoding="utf-8")
