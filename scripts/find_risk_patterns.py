@@ -1043,3 +1043,6 @@ def main():
             print(output_str)
         else:
             print_text_report(results)
+
+if __name__ == "__main__":
+    main()

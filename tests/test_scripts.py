@@ -4,6 +4,7 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -711,6 +712,39 @@ class TestGenerateReport(unittest.TestCase):
         report_file.write_text(report_md, encoding="utf-8")
         passed = verify_citations.verify_report(str(report_file), root_path=str(self.root))
         self.assertTrue(passed)
+
+
+class TestCLISubprocessExecution(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp_dir.name)
+        (self.root / "index.js").write_text("console.log('root');\n", encoding="utf-8")
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_cli_map_repo_json(self):
+        cmd = [sys.executable, str(REPO_ROOT / "scripts" / "map_repo.py"), str(self.root), "--json"]
+        out = subprocess.check_output(cmd, text=True)
+        data = json.loads(out)
+        self.assertEqual(data["total_files"], 1)
+
+    def test_cli_find_risk_patterns_sarif(self):
+        cmd = [sys.executable, str(REPO_ROOT / "scripts" / "find_risk_patterns.py"), str(self.root), "--format", "sarif"]
+        out = subprocess.check_output(cmd, text=True)
+        data = json.loads(out)
+        self.assertEqual(data["version"], "2.1.0")
+
+    def test_cli_chunk_plan_markdown(self):
+        cmd = [sys.executable, str(REPO_ROOT / "scripts" / "chunk_plan.py"), str(self.root), "--format", "markdown"]
+        out = subprocess.check_output(cmd, text=True)
+        self.assertIn("# ClauGravity Audit Chunk Plan", out)
+
+    def test_cli_generate_report_and_verify(self):
+        report_path = self.root / "report.md"
+        cmd_gen = [sys.executable, str(REPO_ROOT / "scripts" / "generate_report.py"), str(self.root), "--output", str(report_path)]
+        subprocess.check_call(cmd_gen)
+        self.assertTrue(report_path.is_file())
 
 
 if __name__ == "__main__":
