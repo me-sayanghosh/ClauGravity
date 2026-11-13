@@ -244,6 +244,30 @@ RULES = [
         "severity_hint": "Medium",
         "explanation": "State-changing HTTP route registered directly with async handler without inline auth middleware."
     },
+    {
+        "id": "JS-SEC-SSRF",
+        "category": "Security",
+        "regex": re.compile(r"""\b(?:axios(?:\.(?:get|post|put|delete|request))?|fetch|got|needle)\s*\(\s*(?:req\.(?:query|body|params)|url|targetUrl|endpoint|destination)\b""", re.I),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Outbound HTTP request with user-controlled destination URL risks Server-Side Request Forgery (SSRF)."
+    },
+    {
+        "id": "JS-SEC-OPEN-REDIRECT",
+        "category": "Security",
+        "regex": re.compile(r"""\bres\.redirect\s*\(\s*(?:req\.(?:query|body|params)|url|target|redirectUrl|returnTo|nextUrl)\b""", re.I),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "Medium",
+        "explanation": "HTTP redirect to user-supplied URL allows open redirect phishing and token exfiltration."
+    },
+    {
+        "id": "JS-SEC-PROTO-POLLUTION",
+        "category": "Security",
+        "regex": re.compile(r"""(?:Object\.assign\s*\(\s*(?:\{\s*\}|[a-zA-Z0-9_]+)\s*,\s*req\.(?:body|query)|\bmerge\s*\([^,]+,\s*req\.(?:body|query)|\[['"`]__proto__['"`]\]|\.__proto__\s*=)"""),
+        "languages": [".js", ".ts", ".jsx", ".tsx"],
+        "severity_hint": "High",
+        "explanation": "Unchecked object assignment or prototype mutation risks Prototype Pollution and property tampering."
+    },
 
     # --- Python Rules ---
     {
@@ -459,6 +483,14 @@ RULES = [
         "languages": [],
         "severity_hint": "High",
         "explanation": "Electronic Codebook (ECB) cipher mode does not provide semantic security."
+    },
+    {
+        "id": "GEN-SEC-XXE",
+        "category": "Security",
+        "regex": re.compile(r"""(?:resolve_entities\s*=\s*True|XMLReaderFactory|DocumentBuilderFactory\.newInstance\s*\(\s*\)|SAXParserFactory\.newInstance)"""),
+        "languages": [".py", ".java", ".js", ".ts"],
+        "severity_hint": "High",
+        "explanation": "XML parser configured without disabling external entity resolution enables XML External Entity (XXE) attacks."
     }
 ]
 

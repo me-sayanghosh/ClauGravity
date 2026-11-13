@@ -469,6 +469,17 @@ class TestFindRiskPatterns(unittest.TestCase):
         hits_go = find_risk_patterns.scan_file(test_go, self.root, find_risk_patterns.RULES)
         self.assertIn("GEN-SEC-WEAK-HASH", [h["rule_id"] for h in hits_go])
 
+    def test_web_security_ssrf_and_proto_pollution(self):
+        test_ssrf = self.root / "webhook.js"
+        test_ssrf.write_text("const resp = await axios.get(req.query.targetUrl);\n", encoding="utf-8")
+        hits = find_risk_patterns.scan_file(test_ssrf, self.root, find_risk_patterns.RULES)
+        self.assertIn("JS-SEC-SSRF", [h["rule_id"] for h in hits])
+
+        test_proto = self.root / "merge.js"
+        test_proto.write_text("const clone = Object.assign({}, req.body);\n", encoding="utf-8")
+        hits_proto = find_risk_patterns.scan_file(test_proto, self.root, find_risk_patterns.RULES)
+        self.assertIn("JS-SEC-PROTO-POLLUTION", [h["rule_id"] for h in hits_proto])
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):
