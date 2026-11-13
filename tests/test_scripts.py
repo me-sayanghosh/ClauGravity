@@ -538,6 +538,22 @@ class TestFindRiskPatterns(unittest.TestCase):
         hits_cs = find_risk_patterns.scan_file(test_cs, self.root, find_risk_patterns.RULES)
         self.assertIn("CS-SEC-SQL-FORMAT", [h["rule_id"] for h in hits_cs])
 
+    def test_sarif_export_and_rule_filtering(self):
+        test_file = self.root / "sample.js"
+        test_file.write_text("eval(userInput);\ndb.query('SELECT * FROM ' + table);\n", encoding="utf-8")
+
+        # Test filtering: include only JS-SEC-EVAL
+        res = find_risk_patterns.run_scan(str(test_file), find_risk_patterns.RULES, include_rules=["JS-SEC-EVAL"])
+        rule_ids = [h["rule_id"] for h in res["hits"]]
+        self.assertIn("JS-SEC-EVAL", rule_ids)
+        self.assertNotIn("JS-SEC-SQL", rule_ids)
+
+        # Test SARIF generation
+        sarif = find_risk_patterns.generate_sarif(res)
+        self.assertEqual(sarif["version"], "2.1.0")
+        self.assertTrue(len(sarif["runs"]) > 0)
+        self.assertEqual(sarif["runs"][0]["tool"]["driver"]["name"], "ClauGravity")
+
 
 class TestRunChecks(unittest.TestCase):
     def setUp(self):

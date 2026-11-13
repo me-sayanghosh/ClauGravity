@@ -845,10 +845,74 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
         pass
     return hits
 
-def run_scan(target_path, rules, category=None, min_severity=None, max_hits=100, max_file_bytes=2*1024*1024):
+def generate_sarif(scan_res):
+    sarif_rules = {}
+    sarif_results = []
+
+    for h in scan_res["hits"]:
+        r_id = h["rule_id"]
+        if r_id not in sarif_rules:
+            sarif_rules[r_id] = {
+                "id": r_id,
+                "shortDescription": {"text": h["explanation"]},
+                "properties": {
+                    "category": h["category"],
+                    "severity": h["severity"]
+                }
+            }
+
+        level = "error" if h["severity"] in ("Critical", "High") else ("warning" if h["severity"] == "Medium" else "note")
+        sarif_results.append({
+            "ruleId": r_id,
+            "level": level,
+            "message": {"text": f"{h['explanation']} at {h['location']}"},
+            "locations": [{
+                "physicalLocation": {
+                    "artifactLocation": {"uri": h["file"]},
+                    "region": {"startLine": h["line_number"]}
+                }
+            }]
+        })
+
+    return {
+        "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{
+            "tool": {
+                "driver": {
+                    "name": "ClauGravity",
+                    "version": "1.1.0",
+                    "rules": list(sarif_rules.values())
+                }
+            },
+            "results": sarif_results
+        }]
+    }
+
+def generate_markdown(scan_res):
+    lines = [
+        "# ClauGravity Risk Pattern Scan Results",
+        f"**Target:** `{scan_res['target']}` | **Total Leads:** {scan_res['total_hits']} (showing top {scan_res['displayed_hits']})\n",
+        "| Severity | Rule ID | Location | Summary / Hint |",
+        "| :--- | :--- | :--- | :--- |"
+    ]
+    for h in scan_res["hits"]:
+        loc_md = f"`{h['location']}`"
+        lines.append(f"| **{h['severity']}** | `{h['rule_id']}` | {loc_md} | {h['explanation']} |")
+    return "\n".join(lines) + "\n"
+
+def run_scan(target_path, rules, category=None, min_severity=None, max_hits=100, max_file_bytes=2*1024*1024, include_rules=None, exclude_rules=None):
     root = Path(target_path).resolve()
     if not root.exists():
         sys.exit(f"Error: Path {root} does not exist.")
+
+    active_rules = rules
+    if include_rules:
+        inc_set = set(r.strip() for r in include_rules)
+        active_rules = [r for r in active_rules if r["id"] in inc_set]
+    if exclude_rules:
+        exc_set = set(r.strip() for r in exclude_rules)
+        active_rules = [r for r in active_rules if r["id"] not in exc_set]
 
     patterns = load_ignore_patterns(root if root.is_dir() else root.parent)
     min_sev_score = SEVERITY_ORDER.get(min_severity, 0) if min_severity else 0
@@ -861,7 +925,7 @@ def run_scan(target_path, rules, category=None, min_severity=None, max_hits=100,
             root.relative_to(base_dir)
         except ValueError:
             base_dir = root.parent
-        all_hits.extend(scan_file(root, base_dir, rules, category, min_sev_score))
+        all_hits.extend(scan_file(root, base_dir, active_rules, category, min_sev_score))
     else:
         for dirpath, dirnames, filenames in os.walk(root):
             dirnames[:] = [d for d in dirnames if not is_ignored(Path(dirpath) / d, root, patterns)]
@@ -878,7 +942,7 @@ def run_scan(target_path, rules, category=None, min_severity=None, max_hits=100,
                 except OSError:
                     continue
 
-                hits = scan_file(fpath, root, rules, category, min_sev_score)
+                hits = scan_file(fpath, root, active_rules, category, min_sev_score)
                 all_hits.extend(hits)
 
     all_hits.sort(key=lambda h: SEVERITY_ORDER.get(h["severity"], 0), reverse=True)
@@ -924,17 +988,58 @@ def main():
     parser = argparse.ArgumentParser(description="Scan repository for candidate bug and vulnerability patterns.")
     parser.add_argument("path", nargs="?", default=".", help="Root directory or file to scan (default: .)")
     parser.add_argument("--json", action="store_true", help="Output results in JSON format")
+    parser.add_argument("--format", choices=["text", "json", "markdown", "sarif"], default="text", help="Output format (default: text)")
     parser.add_argument("--category", type=str, default=None, help="Filter by category (Security, Concurrency, Secrets, etc.)")
     parser.add_argument("--min-severity", type=str, default=None, choices=["Critical", "High", "Medium", "Low", "Info"], help="Minimum severity")
     parser.add_argument("--max-hits", type=int, default=100, help="Maximum number of hits to display (default: 100)")
+    parser.add_argument("--include-rule", type=str, default=None, help="Comma-separated rule IDs to include exclusively")
+    parser.add_argument("--exclude-rule", type=str, default=None, help="Comma-separated rule IDs to exclude")
+    parser.add_argument("--output", "-o", type=str, default=None, help="Output destination file path")
     args = parser.parse_args()
 
-    results = run_scan(args.path, RULES, category=args.category, min_severity=args.min_severity, max_hits=args.max_hits)
+    fmt = "json" if args.json else args.format
+    inc_rules = [r.strip() for r in args.include_rule.split(",")] if args.include_rule else None
+    exc_rules = [r.strip() for r in args.exclude_rule.split(",")] if args.exclude_rule else None
 
-    if args.json:
-        print(json.dumps(results, indent=2))
+    results = run_scan(
+        args.path,
+        RULES,
+        category=args.category,
+        min_severity=args.min_severity,
+        max_hits=args.max_hits,
+        include_rules=inc_rules,
+        exclude_rules=exc_rules
+    )
+
+    if fmt == "json":
+        output_str = json.dumps(results, indent=2)
+    elif fmt == "sarif":
+        output_str = json.dumps(generate_sarif(results), indent=2)
+    elif fmt == "markdown":
+        output_str = generate_markdown(results)
     else:
-        print_text_report(results)
+        output_str = None
 
-if __name__ == "__main__":
-    main()
+    if args.output:
+        out_p = Path(args.output).resolve()
+        out_p.parent.mkdir(parents=True, exist_ok=True)
+        if output_str is not None:
+            out_p.write_text(output_str, encoding="utf-8")
+        else:
+            # Capture print_text_report
+            import io
+            buf = io.StringIO()
+            old_stdout = sys.stdout
+            try:
+                sys.stdout = buf
+                print_text_report(results)
+            finally:
+                sys.stdout = old_stdout
+            out_p.write_text(buf.getvalue(), encoding="utf-8")
+        if fmt not in ("json", "sarif"):
+            print(f"Scan report written to {args.output}")
+    else:
+        if output_str is not None:
+            print(output_str)
+        else:
+            print_text_report(results)
