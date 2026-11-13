@@ -185,6 +185,30 @@ class TestMapRepo(unittest.TestCase):
         self.assertEqual(data["routes"][0]["path"], "/api/items")
         self.assertEqual(data["routes"][0]["method"], "GET")
 
+    def test_route_detection_multilanguage(self):
+        # Rust Axum route
+        rust_file = self.root / "routes.rs"
+        rust_file.write_text('.route("/health", get(health_check))\n', encoding="utf-8")
+
+        # Go stdlib 1.22+ route
+        go_file = self.root / "main.go"
+        go_file.write_text('http.HandleFunc("POST /api/v1/orders", handleCreateOrder)\n', encoding="utf-8")
+
+        # C# ASP.NET route
+        cs_file = self.root / "Controller.cs"
+        cs_file.write_text('[HttpGet("/api/users")]\n', encoding="utf-8")
+
+        data = map_repo.analyze_repo(self.root)
+        routes = data["routes"]
+        paths = [r["path"] for r in routes]
+        methods = [r["method"] for r in routes]
+
+        self.assertIn("/health", paths)
+        self.assertIn("GET", methods)
+        self.assertIn("/api/v1/orders", paths)
+        self.assertIn("POST", methods)
+        self.assertIn("/api/users", paths)
+
     def test_circleci_and_bitbucket_detection(self):
         circle_dir = self.root / ".circleci"
         circle_dir.mkdir(parents=True)

@@ -59,16 +59,30 @@ EXT_LANG_MAP = {
 }
 
 ROUTE_REGEXES = [
-    # Express / Fastify / Node routers
-    re.compile(r"""\b(?:app|router|fastify|server)\.(get|post|put|delete|patch|options|all|route)\s*\(\s*['"`]([^'"`]+)['"`]""", re.I),
+    # Express / Fastify / Node / Hono / Koa routers
+    re.compile(r"""\b(?:app|router|fastify|server|hono|api)\.(get|post|put|delete|patch|options|all|route|use)\s*\(\s*['"`]([^'"`]+)['"`]""", re.I),
     # Flask / FastAPI Python decorators
     re.compile(r"""@(?:app|router|api|bp|blueprint|api_router)\.(route|get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]""", re.I),
-    # Django path / re_path
-    re.compile(r"""\b(?:path|re_path)\s*\(\s*['"`]([^'"`]+)['"`]"""),
-    # Gin Go routes
-    re.compile(r"""\b(?:r|router|engine|group|v1|v2|api)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|Any)\s*\(\s*['"`]([^'"`]+)['"`]"""),
-    # Spring Boot Java annotations
+    # FastAPI router prefix or Blueprint url_prefix
+    re.compile(r"""(?:APIRouter|Blueprint)\s*\([^)]*(?:prefix|url_prefix)\s*=\s*['"`]([^'"`]+)['"`]"""),
+    # Django path / re_path / url
+    re.compile(r"""\b(?:path|re_path|url)\s*\(\s*r?['"`]([^'"`]+)['"`]"""),
+    # Gin / Chi / Echo / Fiber Go routes
+    re.compile(r"""\b(?:r|router|engine|group|v1|v2|api|e|app)\.(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|Any|Handle|HandleFunc|Route)\s*\(\s*['"`]([^'"`]+)['"`]"""),
+    # Go standard library http.HandleFunc ("GET /path" or "/path")
+    re.compile(r"""http\.HandleFunc\s*\(\s*['"`]((?:GET|POST|PUT|DELETE|PATCH)\s+/[^'"`]*|/[^'"`]*)['"`]"""),
+    # Spring Boot Java / Kotlin annotations
     re.compile(r"""@(GetMapping|PostMapping|PutMapping|DeleteMapping|PatchMapping|RequestMapping)\s*\(\s*(?:(?:value|path)\s*=\s*)?['"`]([^'"`]+)['"`]"""),
+    # ASP.NET Core C# attributes
+    re.compile(r"""\[\s*(HttpGet|HttpPost|HttpPut|HttpDelete|HttpPatch|Route)\s*\(\s*['"`]([^'"`]+)['"`]\s*\)\s*\]"""),
+    # Rust Actix Web / Rocket macros
+    re.compile(r"""#\[\s*(get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]\s*\)\s*\]""", re.I),
+    # Rust Axum route chaining
+    re.compile(r"""\.route\s*\(\s*['"`](/[^'"`]*)['"`]\s*,\s*(get|post|put|delete|patch)\s*\(""", re.I),
+    # PHP Laravel / Symfony routes
+    re.compile(r"""(?:Route::(get|post|put|delete|patch|any)|#\[Route)\s*\(\s*['"`]([^'"`]+)['"`]""", re.I),
+    # Ruby on Rails routes
+    re.compile(r"""\b(get|post|put|delete|patch)\s+['"`](/[^'"`]+)['"`]""", re.I),
 ]
 
 def detect_frameworks(root, manifests):
@@ -156,13 +170,24 @@ def scan_routes(file_path, root_dir):
                 for rx in ROUTE_REGEXES:
                     m = rx.search(line)
                     if m:
-                        groups = m.groups()
+                        groups = [g for g in m.groups() if g is not None]
                         if len(groups) >= 2:
-                            method = groups[0].upper()
-                            endpoint = groups[1]
+                            if groups[0].startswith("/") and not groups[1].startswith("/"):
+                                method = groups[1].upper()
+                                endpoint = groups[0]
+                            else:
+                                method = groups[0].upper()
+                                endpoint = groups[1]
+                        elif len(groups) == 1:
+                            val = groups[0]
+                            if " " in val and any(val.startswith(v) for v in ("GET", "POST", "PUT", "DELETE", "PATCH")):
+                                method, endpoint = val.split(" ", 1)
+                            else:
+                                method = "ROUTE"
+                                endpoint = val
                         else:
                             method = "ROUTE"
-                            endpoint = groups[0]
+                            endpoint = "/"
                         routes.append({
                             "method": method,
                             "path": endpoint,
@@ -247,7 +272,7 @@ def analyze_repo(target_path, max_depth=6):
                 or "cmd" in rel_dir.parts):
                 entry_points.append(rel_str)
 
-            if ext in {".js", ".ts", ".jsx", ".tsx", ".py", ".go", ".java"}:
+            if ext in {".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".py", ".go", ".java", ".kt", ".cs", ".rs", ".php", ".rb"}:
                 routes.extend(scan_routes(fpath, root))
 
     all_files.sort(key=lambda x: x["loc"], reverse=True)
