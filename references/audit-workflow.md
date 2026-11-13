@@ -46,7 +46,7 @@ Phase 6: Report
 - **Entry Criteria**: High-level repository architecture mapped.
 - **Actions**:
   1. Run `python scripts/run_checks.py <target_path>` to capture native linters, type checks, and security advisories.
-  2. Run `python scripts/find_risk_patterns.py <target_path>` to identify regex-based pattern matches across the codebase.
+  2. Run `python scripts/find_risk_patterns.py <target_path> --format markdown --output .claugravity/leads.md` to identify regex-based pattern matches across the codebase. Optional SARIF export: `python scripts/find_risk_patterns.py <target_path> --format sarif -o .claugravity/scan.sarif`.
   3. Record raw lead counts into `.claugravity/notes.md`.
   4. Classify leads by priority category: Auth/Payment > Data Persistence > Input Handling > Async/Concurrency > Others.
 - **Exit Criteria**: Automated signal leads compiled into candidate pool.
@@ -102,7 +102,7 @@ Phase 6: Report
 ### Phase 6: Report Generation & Verification
 - **Entry Criteria**: Survived findings verified, categorized, and scored.
 - **Actions**:
-  1. Format findings using `templates/finding.md` within `templates/audit-report.md`.
+  1. Scaffold or format report: Run `python scripts/generate_report.py <target_path> --output .claugravity/report.md` or format findings using `templates/finding.md` within `templates/audit-report.md`.
   2. Run citation verification gate: `python scripts/verify_citations.py .claugravity/report.md --root <target_path>`.
   3. Ensure 100% of code excerpts match exact file lines.
   4. Generate prioritized fix plan structured into:
@@ -131,10 +131,13 @@ When auditing for a specific symptom, error stack trace, or intermittent failure
 
 ### DIFF Mode (Pull Request & Change Review)
 When reviewing uncommitted changes or a specific branch/pull request:
-1. **Analyze Diff**: Run `git diff main...HEAD` or `git diff` to extract exact modified hunks.
+1. **Run Automated Diff Audit**:
+   Execute `python scripts/diff_audit.py [git-ref] --output .claugravity/diff-review.md`.
+   For uncommitted working tree changes: `python scripts/diff_audit.py`.
+   For PR branches: `python scripts/diff_audit.py origin/main...HEAD`.
 2. **Caller and Callee Impact**:
    - Inspect all callers of modified functions.
    - Trace updated return types and error-handling requirements across caller chains.
 3. **Contract Drift**: Verify that changes preserve existing API schemas and database contracts.
 4. **Test Gap Analysis**: Check whether new edge cases or error branches have corresponding unit tests.
-5. **Output**: Use `templates/pr-review.md` to issue a clear verdict: Block, Fix before merge, or OK with nits.
+5. **Output**: Use `templates/pr-review.md` or `diff_audit.py` output to issue a clear verdict: BLOCK, FIX BEFORE MERGE, OK WITH NITS, or APPROVE.

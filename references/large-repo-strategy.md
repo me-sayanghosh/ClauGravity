@@ -75,3 +75,14 @@ When token limits or project scale prevent 100% source inspection, the audit rep
 - Exact list of reviewed modules and file subsets.
 - Explicit list of skipped subdirectories and the technical rationale (e.g., third-party SDKs, client static assets).
 - Explicit declaration of assumptions regarding uninspected layers.
+
+---
+
+## 7. Monorepo Partitioning & Chunk Export
+For monorepos with multiple applications, packages, and microservices:
+1. `scripts/chunk_plan.py` automatically detects top-level package roots (`packages/*`, `apps/*`, `services/*`, `modules/*`) and creates dedicated chunks per package boundary.
+2. Export the chunk plan into markdown:
+   ```bash
+   python scripts/chunk_plan.py . --format markdown --output .claugravity/chunk-plan.md
+   ```
+3. Audit each package service according to its risk weight, maintaining independent sub-service notes in `.claugravity/notes.md`.
