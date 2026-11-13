@@ -358,3 +358,44 @@ This guide covers common pitfalls, race conditions, and asynchronous bugs in mul
   });
   ```
 - **Fix Hint**: Use scoped request context objects or `AsyncLocalStorage` to isolate concurrent request state.
+
+---
+
+## 17. Relational Database Row-Level Locking (`SELECT FOR UPDATE`)
+- **Signal**: Checking row values (account balance, available seat count) in a transaction and updating later without acquiring a row-level write lock.
+- **Bad**:
+  ```sql
+  -- Transaction 1 and Transaction 2 both read balance = 100 concurrently
+  SELECT balance FROM accounts WHERE id = 42;
+  -- Both proceed to debit 60, resulting in negative balance (-20)
+  UPDATE accounts SET balance = balance - 60 WHERE id = 42;
+  ```
+- **Good**:
+  ```sql
+  -- Explicitly lock row until transaction commits
+  SELECT balance FROM accounts WHERE id = 42 FOR UPDATE;
+  UPDATE accounts SET balance = balance - 60 WHERE id = 42;
+  ```
+- **Fix Hint**: Enforce `SELECT ... FOR UPDATE` or optimistic locking versions (`WHERE version = :expected`) on financial balance mutations.
+
+---
+
+## 18. Goroutine Variable Closure Capture
+- **Signal**: In Go (prior to Go 1.22), launching a goroutine inside a loop that references the loop variable directly by pointer/closure.
+- **Bad**:
+  ```go
+  for _, item := range items {
+    go func() {
+      process(item) // Data race: all goroutines reference the same memory address of item
+    }()
+  }
+  ```
+- **Good**:
+  ```go
+  for _, item := range items {
+    go func(val Item) {
+      process(val) // Passed explicitly by value
+    }(item)
+  }
+  ```
+- **Fix Hint**: Pass loop variables explicitly as arguments to goroutine function closures.

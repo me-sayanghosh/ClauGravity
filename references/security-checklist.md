@@ -368,3 +368,95 @@ A structured, code-level vulnerability catalog for reviewing web applications an
   await applyDiscount(order);
   ```
 - **Verification Question**: Can parallel requests duplicate financial credit, reuse single-use promo codes, or bypass rate limits?
+
+---
+
+## 18. Server-Side Request Forgery (SSRF) & Cloud Metadata Access
+- **Code Signals**: Outbound HTTP/socket clients (`fetch`, `axios`, `http.Get`, `urllib.request`) targeting user-supplied URLs without scheme/host whitelisting, IP filtering (blocking `169.254.169.254`, `127.0.0.1`, RFC1918 private subnets), or DNS rebinding protection.
+- **Bad**:
+  ```js
+  app.post("/api/preview", async (req, res) => {
+    // Allows attacker to request http://169.254.169.254/latest/meta-data/iam/security-credentials/
+    const response = await axios.get(req.body.url);
+    res.send(response.data);
+  });
+  ```
+- **Good**:
+  ```js
+  import ipaddr from "ipaddr.js";
+  import dns from "dns/promises";
+
+  app.post("/api/preview", async (req, res) => {
+    const parsed = new URL(req.body.url);
+    if (!["http:", "https:"].includes(parsed.protocol)) throw new Error("Invalid scheme");
+    const { address } = await dns.lookup(parsed.hostname);
+    const ip = ipaddr.parse(address);
+    if (ip.range() !== "unicast") throw new Error("Access to private network forbidden");
+    const response = await axios.get(parsed.toString(), { timeout: 3000 });
+    res.send(response.data);
+  });
+  ```
+- **Verification Question**: Can an external user force the application server to query internal network services or cloud instance metadata?
+
+---
+
+## 19. Prototype Pollution
+- **Code Signals**: Deep-cloning, recursive merging (`lodash.merge`, custom merge functions), or property assignments with unsanitized keys (`__proto__`, `constructor`, `prototype`).
+- **Bad**:
+  ```js
+  // Malicious JSON payload { "__proto__": { "isAdmin": true } }
+  function merge(target, source) {
+    for (let key in source) {
+      if (typeof source[key] === "object") {
+        if (!target[key]) target[key] = {};
+        merge(target[key], source[key]);
+      } else {
+        target[key] = source[key];
+      }
+    }
+  }
+  ```
+- **Good**:
+  ```js
+  function safeMerge(target, source) {
+    for (let key of Object.keys(source)) {
+      if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+      if (source[key] && typeof source[key] === "object" && !Array.isArray(source[key])) {
+        if (!target[key]) target[key] = Object.create(null);
+        safeMerge(target[key], source[key]);
+      } else {
+        target[key] = source[key];
+      }
+    }
+  }
+  ```
+- **Verification Question**: Can modifying property values on arbitrary object literals alter global object prototypes across the Node process?
+
+---
+
+## 20. Insecure Deserialization & Archive Traversal (Zip Slip)
+- **Code Signals**: Extracting archives via `tarfile.extractall()` or unzippers without verifying destination path containment; unpickling objects (`pickle.loads`, `yaml.unsafe_load`, Java `ObjectInputStream`).
+- **Bad**:
+  ```python
+  import tarfile
+
+  def unpack(archive_path):
+      # Zip Slip / CVE-2007-4559: file with name '../../etc/cron.d/pwn' overwrites host system
+      with tarfile.open(archive_path) as tar:
+          tar.extractall("/tmp/uploads")
+  ```
+- **Good**:
+  ```python
+  import tarfile
+
+  def unpack(archive_path):
+      with tarfile.open(archive_path) as tar:
+          tar.extractall("/tmp/uploads", filter="data")
+  ```
+- **Verification Question**: Can an archive member escape the target extraction directory through relative path components (`../`)?
+
+---
+
+## 21. AI & LLM Prompt Injection / Tool Output Vulnerabilities
+- **Code Signals**: Passing unvalidated user input or database records directly into prompt string concatenations that invoke external tools or filesystem/database mutations; evaluating LLM outputs with `eval()` or shell interpreters without sandboxing.
+- **Verification Question**: Can untrusted user content hijack system prompt instructions or trigger unintended autonomous actions?
