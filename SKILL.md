@@ -122,7 +122,22 @@ Progressively load only the references required for the target codebase:
 
 ---
 
-## 6. Analysis Scripts
+## 6. Deep Thinking & Adversarial Reasoning Protocol
+When analyzing candidate leads, the agent must activate deep chain-of-thought reasoning before promoting any lead to a confirmed finding:
+1. **Adversarial Falsification (Red-Team vs. Blue-Team)**:
+   - *Red Team (Exploit Path)*: Formulate the exact HTTP request, payload structure, or event sequence an attacker sends to reach the sink.
+   - *Blue Team (Defense Invariants)*: Rigorously verify whether upstream mitigations exist: schema validation (Zod, Pydantic), type coercion (`Number()`, `parseInt`), ORM parameterization, or router-level authentication guards. If an active defense neutralizes the hazard, dismiss the candidate.
+2. **Concurrency TOCTOU Interleaving**:
+   - For balance updates, inventory counters, and state mutations, trace the explicit timeline: `Thread A Read -> Thread B Read -> Thread A Write -> Thread B Write`. Verify whether database transactions with proper isolation levels, row locks (`SELECT FOR UPDATE`), or atomic database operators (`$inc`, `UPDATE ... WHERE`) protect the invariant.
+3. **Sink-to-Source Taint Reachability**:
+   - Trace the tainted data backward from the dangerous sink (SQL query, shell execution, file read/write, DOM injection) to its origin. If the input cannot be influenced by an external user, downgrade or discard the finding.
+4. **Token & Context Efficiency Rules**:
+   - Always let local Python scripts (`map_repo.py`, `find_risk_patterns.py`, `diff_audit.py`) pre-filter the repository in <0.2s before reading file content into LLM context.
+   - Never load entire multi-thousand-line files. Read only bounded line windows (lines `N - 25` to `N + 35`) around identified candidate leads.
+
+---
+
+## 7. Analysis Scripts
 Treat all scripts as black-box utilities. Invoke with `--help` for syntax; do not inspect script source code unless debugging execution failures:
 - **Repository Topology**: `python scripts/map_repo.py [path] [--json]`
 - **Lead Scanner**: `python scripts/find_risk_patterns.py [path] [--format text|json|markdown|sarif] [--category X] [--min-severity High] [-o output.md]`
@@ -134,7 +149,7 @@ Treat all scripts as black-box utilities. Invoke with `--help` for syntax; do no
 
 ---
 
-## 7. Report Output & Verification Standards
+## 8. Report Output & Verification Standards
 - **Report Location**: Write full audit reports to `.claugravity/report.md` using `scripts/generate_report.py` and [`templates/audit-report.md`](templates/audit-report.md). Use [`templates/finding.md`](templates/finding.md) for individual defects and `scripts/diff_audit.py` or [`templates/pr-review.md`](templates/pr-review.md) for diff reviews.
 - **Mandatory Citation Verification**: Prior to presenting findings, execute:
   ```bash
