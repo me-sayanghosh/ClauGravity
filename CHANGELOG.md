@@ -7,12 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.1] - 2026-11-14
 
+### Added
+- **First-Class `/claugravity` Slash Command**: Registered command definitions in `.claude/commands/claugravity.md` and `commands/claugravity.md` mapped via `.claude-plugin/plugin.json`, supporting first-class slash command invocation across Antigravity and Claude Code.
+- **Deep Thinking & Adversarial Falsification Protocol**: Embedded explicit Red-Team vs. Blue-Team mental simulation, concurrency TOCTOU interleaving, and taint reachability rules into skill instructions and command triggers.
+
 ### Changed
 - **Shared Core Module (`scripts/common.py`)**: Extracted common ignore constants (`DEFAULT_IGNORES`), lockfile identifiers (`LOCKFILES`), binary extension catalogs (`BINARY_EXTENSIONS`), ignore file loaders (`load_ignore_patterns`), path matching (`is_ignored`), and fast binary line counters (`count_lines`).
 - **Codebase Deduplication & DRY Optimization**: Eliminated over 250 lines of duplicate code across `map_repo.py`, `chunk_plan.py`, `find_risk_patterns.py`, `run_checks.py`, `diff_audit.py`, `generate_report.py`, and `verify_citations.py` while preserving 100% backward compatibility.
 - **Streamlined Check Dispatch**: Refactored `scripts/run_checks.py` with unified check runner dispatch, drastically reducing boilerplate.
 - **Optimized Diff & Report Assembly**: Compacted unified diff parsing and markdown rendering in `scripts/diff_audit.py` and `scripts/generate_report.py`.
 - **Refined Citation Verifier**: Streamlined location parsing and multi-block finding extraction in `scripts/verify_citations.py`.
+
+### Fixed
+- **Dead Code Elimination**: Removed all unused imports (`fnmatch`, `os`, `shutil`, `verify_citations`) and dead local variables (`total_loc`, `avg_risk`, `total_unfiltered_hits`, `FINDING_HEADER_REGEX`) across all scripts and test suites.
+- **Markdown Alignment**: Updated template versioning headers across `templates/audit-report.md`, `templates/pr-review.md`, `examples/sample-report.md`, `examples/sample-pr-review.md`, and `tests/RESULTS.md` to reflect v1.1.1.
 
 ## [1.1.0] - 2026-11-13
 
