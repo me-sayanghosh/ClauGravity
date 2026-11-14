@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "claugravity",
+  "version": "1.1.1",
+  "description": "Autonomous codebase security auditing, pull request diff reviews, and race condition hunting with mechanical citation verification.",
+  "author": {
+    "name": "Sayan Ghosh"
+  },
+  "keywords": [
+    "security",
+    "audit",
+    "vulnerabilities",
+    "code-review",
+    "pr-review",
+    "antigravity",
+    "claude-code"
+  ],
+  "skills": [
+    {
+      "name": "claugravity",
+      "path": "SKILL.md"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "name": "claugravity",
+  "description": "Autonomous software auditing, vulnerability hunting, and PR review skill with mechanical citation verification.",
+  "version": "1.1.1",
+  "suggestedPrompts": [
+    "Use ClauGravity to audit this repo",
+    "Review my uncommitted changes against main with ClauGravity",
+    "ClauGravity security review of the auth module",
+    "ClauGravity quick triage"
+  ]
+}

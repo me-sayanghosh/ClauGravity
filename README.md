@@ -71,6 +71,10 @@ Select the operational mode corresponding to your objective:
 
 ```
 ClauGravity/
+├── .claude-plugin/                   # Claude Code plugin & marketplace manifests
+│   ├── marketplace.json              # Claude Code marketplace catalog
+│   └── plugin.json                   # Claude Code plugin manifest
+├── plugin.json                       # Antigravity plugin manifest
 ├── SKILL.md                          # Root skill definition & agent instructions
 ├── README.md                         # Complete project documentation & guide
 ├── LICENSE                           # MIT License
@@ -122,18 +126,34 @@ ClauGravity/
 
 ## Installation
 
-ClauGravity operates as a standard Agent Skill. Install it into individual workspaces or globally across your environment.
+ClauGravity can be installed across both **Claude Code** and **Google Antigravity**.
 
-### Workspace Installation (Per Project)
-Run this command from your target project root:
+### Option 1: Claude Code (Plugin Marketplace)
+You can install ClauGravity directly inside Claude Code using its native plugin marketplace commands:
+
 ```bash
+# 1. Register the ClauGravity marketplace catalog
+/plugin marketplace add me-sayanghosh/ClauGravity
+
+# 2. Install the ClauGravity plugin
+/plugin install claugravity@ClauGravity
+```
+
+### Option 2: Google Antigravity (Workspace / Per-Project)
+Install ClauGravity inside a specific project repository. You can commit `.agents/skills/claugravity` to Git so your entire team has it automatically:
+
+```bash
+cd /path/to/your-project
+mkdir -p .agents/skills
 git clone https://github.com/me-sayanghosh/ClauGravity.git .agents/skills/claugravity
 ```
 *Note:* The destination folder must be lowercase `claugravity`, matching the skill name defined in `SKILL.md`. The path `.agent/skills/claugravity` is also supported.
 
-### Global Installation (User-Wide)
-To make ClauGravity available across all workspaces on your workstation:
+### Option 3: Google Antigravity (Global / All Projects)
+To make ClauGravity available globally across all workspaces on your workstation:
+
 ```bash
+mkdir -p ~/.gemini/config/skills
 git clone https://github.com/me-sayanghosh/ClauGravity.git ~/.gemini/config/skills/claugravity
 ```
 

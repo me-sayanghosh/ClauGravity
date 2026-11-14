@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "ClauGravity",
+  "version": "1.1.1",
+  "description": "Production-grade autonomous software auditing, vulnerability research, and PR review skill for AI coding agents.",
+  "owner": {
+    "name": "Sayan Ghosh",
+    "url": "https://github.com/me-sayanghosh/ClauGravity"
+  },
+  "plugins": [
+    {
+      "name": "claugravity",
+      "description": "Autonomous codebase security auditing, pull request diff reviews, and race condition hunting with mechanical citation verification.",
+      "version": "1.1.1",
+      "author": {
+        "name": "Sayan Ghosh"
+      },
+      "category": "security",
+      "source": "./"
+    }
+  ]
+}
