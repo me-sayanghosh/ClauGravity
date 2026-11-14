@@ -13,7 +13,6 @@ Examples:
 """
 
 import argparse
-import fnmatch
 import json
 import os
 import subprocess
@@ -22,12 +21,12 @@ from pathlib import Path
 
 try:
     from scripts.common import (
-        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        LOCKFILES, BINARY_EXTENSIONS,
         load_ignore_patterns, is_ignored, count_lines
     )
 except ImportError:
     from common import (
-        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        LOCKFILES, BINARY_EXTENSIONS,
         load_ignore_patterns, is_ignored, count_lines
     )
 
@@ -161,8 +160,6 @@ def generate_chunks(target_path, max_chunks=8, max_files_per_chunk=25):
 
     for mod_name, files in module_files.items():
         files.sort(key=lambda x: x["risk_score"], reverse=True)
-        total_loc = sum(f["loc"] for f in files)
-        avg_risk = sum(f["risk_score"] for f in files) / max(len(files), 1)
 
         # Subdivide large modules exceeding max_files_per_chunk
         for i in range(0, len(files), max_files_per_chunk):
