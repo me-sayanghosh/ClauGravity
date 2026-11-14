@@ -66,6 +66,12 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
 
     results = []
 
+    def add(name, tool, cat, cmd=None, status=None, msg=""):
+        if cmd:
+            results.append({"name": name, "tool": tool, "category": cat, **run_cmd(cmd, cwd=root, timeout=timeout)})
+        else:
+            results.append({"name": name, "tool": tool, "category": cat, "status": status, "exit_code": 0, "output": msg})
+
     # Detect Node.js package manager
     pm = "npm"
     if (root / "bun.lockb").is_file() or (root / "bun.lock").is_file():
@@ -77,133 +83,98 @@ def execute_checks(target_path, timeout=30, allow_tests=False):
 
     # 1. Node.js / JavaScript Checks
     pkg_json = root / "package.json"
-    tsconfig = root / "tsconfig.json"
-
     if pkg_json.is_file():
         try:
             with open(pkg_json, "r", encoding="utf-8") as f:
-                pkg_data = json.load(f)
-            scripts = pkg_data.get("scripts", {})
+                scripts = json.load(f).get("scripts", {})
 
             if "lint" in scripts and is_tool_available(pm):
-                res = run_cmd([pm, "run", "lint", "--silent"], cwd=root, timeout=timeout)
-                results.append({"name": f"{pm} run lint", "tool": pm, "category": "Linter", **res})
+                add(f"{pm} run lint", pm, "Linter", cmd=[pm, "run", "lint", "--silent"])
+            elif "lint" not in scripts and is_tool_available("eslint"):
+                add("eslint", "eslint", "Linter", cmd=["eslint", "."])
 
             if "typecheck" in scripts and is_tool_available(pm):
-                res = run_cmd([pm, "run", "typecheck", "--silent"], cwd=root, timeout=timeout)
-                results.append({"name": f"{pm} run typecheck", "tool": pm, "category": "Typechecker", **res})
+                add(f"{pm} run typecheck", pm, "Typechecker", cmd=[pm, "run", "typecheck", "--silent"])
 
             if "test" in scripts:
                 if allow_tests and is_tool_available(pm):
-                    test_args = [pm, "test"] if pm == "yarn" else [pm, "test", "--silent"]
-                    res = run_cmd(test_args, cwd=root, timeout=timeout)
-                    results.append({"name": f"{pm} test", "tool": pm, "category": "Tests", **res})
+                    add(f"{pm} test", pm, "Tests", cmd=[pm, "test"] if pm == "yarn" else [pm, "test", "--silent"])
                 else:
-                    results.append({"name": f"{pm} test", "tool": pm, "category": "Tests", "status": "available, not run", "exit_code": 0, "output": f"Tests available in package.json; rerun with --allow-tests to execute."})
+                    add(f"{pm} test", pm, "Tests", status="available, not run", msg="Tests available in package.json; rerun with --allow-tests to execute.")
         except Exception:
             pass
 
-        if "lint" not in scripts and is_tool_available("eslint"):
-            res = run_cmd(["eslint", "."], cwd=root, timeout=timeout)
-            results.append({"name": "eslint", "tool": "eslint", "category": "Linter", **res})
-
         # Production audit
         if (root / "yarn.lock").is_file() and is_tool_available("yarn"):
-            res = run_cmd(["yarn", "audit", "--groups", "dependencies"], cwd=root, timeout=timeout)
-            results.append({"name": "yarn audit (prod)", "tool": "yarn", "category": "Security", **res})
+            add("yarn audit (prod)", "yarn", "Security", cmd=["yarn", "audit", "--groups", "dependencies"])
         elif (root / "pnpm-lock.yaml").is_file() and is_tool_available("pnpm"):
-            res = run_cmd(["pnpm", "audit", "--prod"], cwd=root, timeout=timeout)
-            results.append({"name": "pnpm audit (prod)", "tool": "pnpm", "category": "Security", **res})
+            add("pnpm audit (prod)", "pnpm", "Security", cmd=["pnpm", "audit", "--prod"])
         elif (root / "package-lock.json").is_file() or (root / "npm-shrinkwrap.json").is_file():
             if is_tool_available("npm"):
-                res = run_cmd(["npm", "audit", "--omit=dev"], cwd=root, timeout=timeout)
-                results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", **res})
+                add("npm audit (prod)", "npm", "Security", cmd=["npm", "audit", "--omit=dev"])
         elif is_tool_available("npm"):
-            results.append({"name": "npm audit (prod)", "tool": "npm", "category": "Security", "status": "skipped: no lockfile", "exit_code": 0, "output": "Skipped: npm audit requires an existing package-lock.json."})
+            add("npm audit (prod)", "npm", "Security", status="skipped: no lockfile", msg="Skipped: npm audit requires an existing package-lock.json.")
 
-    if tsconfig.is_file():
+    if (root / "tsconfig.json").is_file():
         if is_tool_available("tsc"):
-            res = run_cmd(["tsc", "--noEmit"], cwd=root, timeout=timeout)
-            results.append({"name": "tsc --noEmit", "tool": "tsc", "category": "Typechecker", **res})
+            add("tsc --noEmit", "tsc", "Typechecker", cmd=["tsc", "--noEmit"])
         else:
-            results.append({"name": "tsc --noEmit", "tool": "tsc", "category": "Typechecker", "status": "skipped: not installed", "exit_code": 0, "output": ""})
+            add("tsc --noEmit", "tsc", "Typechecker", status="skipped: not installed")
 
     # 2. Python Checks
-    pyproject = root / "pyproject.toml"
-    setup_py = root / "setup.py"
-    setup_cfg = root / "setup.cfg"
-    req_txt = root / "requirements.txt"
-    pipfile = root / "Pipfile"
-    req_dir = root / "requirements"
     has_python = (
-        pyproject.is_file()
-        or setup_py.is_file()
-        or setup_cfg.is_file()
-        or req_txt.is_file()
-        or pipfile.is_file()
-        or (req_dir.is_dir() and any(req_dir.glob("*.txt")))
-        or any(root.glob("*.py"))
-        or any(root.glob("*/*.py"))
-        or any(root.glob("*/*/*.py"))
+        any((root / m).is_file() for m in ("pyproject.toml", "setup.py", "setup.cfg", "requirements.txt", "Pipfile"))
+        or ((root / "requirements").is_dir() and any((root / "requirements").glob("*.txt")))
+        or any(root.glob("*.py")) or any(root.glob("*/*.py")) or any(root.glob("*/*/*.py"))
     )
 
     if has_python:
         if is_tool_available("ruff"):
-            res = run_cmd(["ruff", "check", "."], cwd=root, timeout=timeout)
-            results.append({"name": "ruff check", "tool": "ruff", "category": "Linter", **res})
+            add("ruff check", "ruff", "Linter", cmd=["ruff", "check", "."])
         elif is_tool_available("flake8"):
-            res = run_cmd(["flake8", "."], cwd=root, timeout=timeout)
-            results.append({"name": "flake8", "tool": "flake8", "category": "Linter", **res})
+            add("flake8", "flake8", "Linter", cmd=["flake8", "."])
         else:
-            results.append({"name": "python linter", "tool": "ruff/flake8", "category": "Linter", "status": "skipped: not installed", "exit_code": 0, "output": ""})
+            add("python linter", "ruff/flake8", "Linter", status="skipped: not installed")
 
         if is_tool_available("mypy"):
-            res = run_cmd(["mypy", "."], cwd=root, timeout=timeout)
-            results.append({"name": "mypy", "tool": "mypy", "category": "Typechecker", **res})
+            add("mypy", "mypy", "Typechecker", cmd=["mypy", "."])
 
         if is_tool_available("bandit"):
-            res = run_cmd(["bandit", "-r", ".", "-ll", "-q"], cwd=root, timeout=timeout)
-            results.append({"name": "bandit", "tool": "bandit", "category": "Security", **res})
+            add("bandit", "bandit", "Security", cmd=["bandit", "-r", ".", "-ll", "-q"])
 
         if is_tool_available("pip-audit"):
-            res = run_cmd(["pip-audit"], cwd=root, timeout=timeout)
-            results.append({"name": "pip-audit", "tool": "pip-audit", "category": "Security", **res})
+            add("pip-audit", "pip-audit", "Security", cmd=["pip-audit"])
 
         # Test runner (pytest with fallback to python unittest)
         has_tests = any(root.glob("**/test_*.py")) or any(root.glob("**/*_test.py")) or (root / "tests").is_dir()
         if is_tool_available("pytest"):
             if allow_tests:
-                res = run_cmd(["pytest", "-q"], cwd=root, timeout=timeout)
-                results.append({"name": "pytest", "tool": "pytest", "category": "Tests", **res})
+                add("pytest", "pytest", "Tests", cmd=["pytest", "-q"])
             else:
-                results.append({"name": "pytest", "tool": "pytest", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Tests available; rerun with --allow-tests to execute."})
+                add("pytest", "pytest", "Tests", status="available, not run", msg="Tests available; rerun with --allow-tests to execute.")
         elif has_tests:
             if allow_tests:
-                res = run_cmd([sys.executable, "-m", "unittest", "discover", "-s", "."], cwd=root, timeout=timeout)
-                results.append({"name": "python unittest", "tool": "unittest", "category": "Tests", **res})
+                add("python unittest", "unittest", "Tests", cmd=[sys.executable, "-m", "unittest", "discover", "-s", "."])
             else:
-                results.append({"name": "python unittest", "tool": "unittest", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Unit tests detected; rerun with --allow-tests to execute."})
+                add("python unittest", "unittest", "Tests", status="available, not run", msg="Unit tests detected; rerun with --allow-tests to execute.")
 
     # 3. Go Checks
     if (root / "go.mod").is_file():
         if is_tool_available("go"):
-            res = run_cmd(["go", "vet", "./..."], cwd=root, timeout=timeout)
-            results.append({"name": "go vet", "tool": "go", "category": "Linter", **res})
+            add("go vet", "go", "Linter", cmd=["go", "vet", "./..."])
             if allow_tests:
-                res = run_cmd(["go", "test", "-short", "./..."], cwd=root, timeout=timeout)
-                results.append({"name": "go test", "tool": "go", "category": "Tests", **res})
+                add("go test", "go", "Tests", cmd=["go", "test", "-short", "./..."])
             else:
-                results.append({"name": "go test", "tool": "go", "category": "Tests", "status": "available, not run", "exit_code": 0, "output": "Tests available; rerun with --allow-tests to execute."})
+                add("go test", "go", "Tests", status="available, not run", msg="Tests available; rerun with --allow-tests to execute.")
         else:
-            results.append({"name": "go tools", "tool": "go", "category": "Tooling", "status": "skipped: not installed", "exit_code": 0, "output": ""})
+            add("go tools", "go", "Tooling", status="skipped: not installed")
 
     # 4. Rust Checks
     if (root / "Cargo.toml").is_file():
         if is_tool_available("cargo"):
-            res = run_cmd(["cargo", "check", "--quiet"], cwd=root, timeout=timeout)
-            results.append({"name": "cargo check", "tool": "cargo", "category": "Typechecker", **res})
+            add("cargo check", "cargo", "Typechecker", cmd=["cargo", "check", "--quiet"])
         else:
-            results.append({"name": "cargo", "tool": "cargo", "category": "Tooling", "status": "skipped: not installed", "exit_code": 0, "output": ""})
+            add("cargo", "cargo", "Tooling", status="skipped: not installed")
 
     return {
         "target": str(root),
