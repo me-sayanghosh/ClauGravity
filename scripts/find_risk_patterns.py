@@ -19,7 +19,6 @@ Examples:
 """
 
 import argparse
-import fnmatch
 import json
 import os
 import re
@@ -28,12 +27,12 @@ from pathlib import Path
 
 try:
     from scripts.common import (
-        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        LOCKFILES, BINARY_EXTENSIONS,
         load_ignore_patterns, is_ignored
     )
 except ImportError:
     from common import (
-        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        LOCKFILES, BINARY_EXTENSIONS,
         load_ignore_patterns, is_ignored
     )
 
