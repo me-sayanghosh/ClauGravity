@@ -178,6 +178,8 @@ All five specialized operational modes were dry-run against `tests/fixture-proje
 - **Findings:** Verified all 3 module defects (Stock race, missing await on save, IDOR).
 - **SKILL.md Evaluation:** Clean boundary mapping between module logic and global middleware.
 
-
-
-
+### 6. FULL Mode (Comprehensive Whole-Repo Audit)
+- **Target Scope:** Entire `tests/fixture-project/` repository.
+- **Workflow Execution:** Executed end-to-end 7-phase audit workflow. Mapped routes and topology (`map_repo.py`), extracted signals (`find_risk_patterns.py`, `run_checks.py`), traced all 12 defects, successfully discarded all 3 decoys in the Disprove Pass, and mechanically validated all citations with `verify_citations.py`.
+- **Findings:** 12 confirmed findings documented with 100% verified citations in `tests/fixture-report-iteration-1.md` and `tests/fixture-report-iteration-2.md`.
+- **SKILL.md Evaluation:** Multi-phase structure ensured zero hallucinations, high signal-to-noise ratio, and clean reporting.
