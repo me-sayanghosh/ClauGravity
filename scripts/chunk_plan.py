@@ -20,33 +20,16 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_IGNORES = {
-    ".git", "node_modules", "dist", "build", ".next", "out", "coverage",
-    "venv", ".venv", "__pycache__", "vendor", "target", ".idea", ".vscode",
-    ".claugravity", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-    ".DS_Store", "Thumbs.db"
-}
-
-LOCKFILES = {
-    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
-    "poetry.lock", "composer.lock", "Pipfile.lock", "Gemfile.lock",
-    "bun.lockb", "bun.lock", "flake.lock", "packages.lock.json", "mix.lock"
-}
-
-BINARY_EXTENSIONS = {
-    # Images & icons
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp", ".avif", ".bmp", ".tiff", ".psd",
-    # Fonts
-    ".woff", ".woff2", ".ttf", ".eot", ".otf",
-    # Archives & installers
-    ".zip", ".tar", ".gz", ".7z", ".rar", ".bz2", ".xz", ".zst", ".iso", ".dmg", ".deb", ".rpm", ".apk", ".ipa",
-    # Documents & media
-    ".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls", ".mp4", ".mp3", ".mov", ".avi", ".webm", ".wav",
-    # Binaries, compiled objects & shared libraries
-    ".exe", ".bin", ".so", ".dylib", ".dll", ".pyc", ".class", ".jar", ".war", ".wasm", ".o", ".obj", ".a", ".lib",
-    # Data dumps, models & source maps
-    ".sqlite", ".sqlite3", ".db", ".parquet", ".arrow", ".avro", ".pt", ".pth", ".onnx", ".pkl", ".pickle", ".safetensors", ".map"
-}
+try:
+    from scripts.common import (
+        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        load_ignore_patterns, is_ignored, count_lines
+    )
+except ImportError:
+    from common import (
+        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        load_ignore_patterns, is_ignored, count_lines
+    )
 
 RISK_WEIGHTS = {
     "auth": 100,
@@ -67,55 +50,6 @@ KEYWORD_MAP = {
     "queue": ["queue", "worker", "job", "celery", "bull", "kafka", "rabbit", "task", "consumer", "producer"],
     "io": ["upload", "file", "process", "exec", "download", "storage", "fs", "stream"]
 }
-
-def load_ignore_patterns(root_dir):
-    patterns = set(p.rstrip("/") for p in DEFAULT_IGNORES)
-    ignore_file = Path(root_dir) / ".claugravityignore"
-    if ignore_file.is_file():
-        try:
-            with open(ignore_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        patterns.add(line)
-                        if line.endswith("/"):
-                            patterns.add(line.rstrip("/"))
-        except Exception:
-            pass
-    return patterns
-
-def is_ignored(path, root_dir, patterns):
-    try:
-        rel = path.relative_to(root_dir)
-    except ValueError:
-        return False
-    parts = rel.parts
-    rel_str = str(rel).replace(os.sep, "/")
-    for p in parts:
-        if p in patterns:
-            return True
-        for pat in patterns:
-            clean_pat = pat.rstrip("/")
-            if p == clean_pat or fnmatch.fnmatch(p, clean_pat):
-                return True
-    for pat in patterns:
-        clean_pat = pat.rstrip("/")
-        if rel_str == clean_pat or rel_str.startswith(clean_pat + "/"):
-            return True
-        if (fnmatch.fnmatch(rel_str, pat)
-            or fnmatch.fnmatch(rel_str, clean_pat)
-            or fnmatch.fnmatch(rel_str, clean_pat + "/*")
-            or fnmatch.fnmatch(path.name, pat)
-            or fnmatch.fnmatch(path.name, clean_pat)):
-            return True
-    return False
-
-def count_lines(file_path):
-    try:
-        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-            return sum(1 for _ in f)
-    except Exception:
-        return 0
 
 def get_recent_churn(root_dir):
     churn = {}
