@@ -3,7 +3,7 @@
 **Target Project:** [Project Name]  
 **Repository Branch / Commit:** `main` @ `[commit_hash]`  
 **Audit Date:** [Date]  
-**Auditor Engine:** ClauGravity v1.0.0  
+**Auditor Engine:** ClauGravity v1.1.1  
 
 ---
 
