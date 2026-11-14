@@ -83,7 +83,7 @@ class TestVerifyCitations(unittest.TestCase):
             "raw_location": "example.js:2",
             "evidence": "const secret = 'xyz';"
         }
-        ok, reason = verify_citations.verify_single_citation(finding, self.root, tolerance=3)
+        ok, _ = verify_citations.verify_single_citation(finding, self.root, tolerance=3)
         self.assertTrue(ok)
 
     def test_trailing_space_on_code_fence(self):
