@@ -28,14 +28,16 @@ Language guidelines in `references/` provide focused, actionable signals for cod
 - Include a verification checklist item or test hint.
 - Keep references focused and code-centric, targeting under 400 lines per topic.
 
-## Running Fixture Self-Tests
+## Running the Test Suite & Fixture Self-Tests
 
-Before opening a pull request, run the full verification suite against the fixture project:
+Before opening a pull request, run the automated test suite and fixture verification:
 ```bash
-python scripts/map_repo.py tests/fixture-project
-python scripts/find_risk_patterns.py tests/fixture-project
-python scripts/run_checks.py tests/fixture-project
-python scripts/verify_citations.py tests/fixture-report-iteration-1.md --root tests/fixture-project
+# 1. Run all 64 automated unit & subprocess tests
+python3 -m unittest tests/test_scripts.py
+
+# 2. Verify citations against the fixture reports
+python3 scripts/verify_citations.py tests/fixture-report-iteration-1.md --root tests/fixture-project
+python3 scripts/verify_citations.py tests/fixture-report-iteration-2.md --root tests/fixture-project
 ```
 
 ## Pull Request Process
