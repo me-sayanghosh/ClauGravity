@@ -29,28 +29,17 @@ def normalize_text(text):
 
 def parse_findings(report_text):
     findings = []
-    # Split by finding blocks or scan sequentially
-    # We look for finding sections containing **Location:** and **Evidence:**
-    blocks = re.split(r"""(?=^#{2,4}\s+)""", report_text, flags=re.M)
-
-    for block in blocks:
-        loc_match = LOCATION_REGEX.search(block)
-        evi_match = EVIDENCE_REGEX.search(block)
-        if not loc_match or not evi_match:
-            continue
-
-        header_match = re.search(r"""^#{2,4}\s+(.*)$""", block, re.M)
-        title = header_match.group(1).strip() if header_match else "Unknown Finding"
-
-        loc_str = loc_match.group(1).strip()
-        groups = evi_match.groups()
-        evidence_str = groups[1] if len(groups) >= 2 else groups[0]
-
-        findings.append({
-            "title": title,
-            "raw_location": loc_str,
-            "evidence": evidence_str
-        })
+    for block in re.split(r"""(?=^#{2,4}\s+)""", report_text, flags=re.M):
+        loc_m = LOCATION_REGEX.search(block)
+        evi_m = EVIDENCE_REGEX.search(block)
+        if loc_m and evi_m:
+            hdr_m = re.search(r"""^#{2,4}\s+(.*)$""", block, re.M)
+            groups = evi_m.groups()
+            findings.append({
+                "title": hdr_m.group(1).strip() if hdr_m else "Unknown Finding",
+                "raw_location": loc_m.group(1).strip(),
+                "evidence": groups[1] if len(groups) >= 2 else groups[0]
+            })
     return findings
 
 def parse_location(loc_str):
@@ -67,20 +56,16 @@ def parse_location(loc_str):
     file_part, line_part = loc_clean.rsplit(":", 1)
     line_part = line_part.replace(" ", "")
     if "-" in line_part:
-        start_s, end_s = line_part.split("-", 1)
-        start_s = start_s.strip().lstrip("Ll")
-        end_s = end_s.strip().lstrip("Ll")
+        parts = [p.strip().lstrip("Ll") for p in line_part.split("-", 1)]
         try:
-            return file_part, int(start_s), int(end_s)
+            return file_part, int(parts[0]), int(parts[1])
         except ValueError:
             return file_part, None, None
-    else:
-        line_part = line_part.strip().lstrip("Ll")
-        try:
-            line_num = int(line_part)
-            return file_part, line_num, line_num
-        except ValueError:
-            return file_part, None, None
+    try:
+        val = int(line_part.lstrip("Ll"))
+        return file_part, val, val
+    except ValueError:
+        return file_part, None, None
 
 def verify_single_citation(finding, root_dir, tolerance=5):
     raw_loc = finding["raw_location"]
