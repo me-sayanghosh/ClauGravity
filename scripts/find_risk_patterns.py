@@ -26,33 +26,16 @@ import re
 import sys
 from pathlib import Path
 
-DEFAULT_IGNORES = {
-    ".git", "node_modules", "dist", "build", ".next", "out", "coverage",
-    "venv", ".venv", "__pycache__", "vendor", "target", ".idea", ".vscode",
-    ".claugravity", ".pytest_cache", ".mypy_cache", ".ruff_cache",
-    ".DS_Store", "Thumbs.db"
-}
-
-LOCKFILES = {
-    "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock",
-    "poetry.lock", "composer.lock", "Pipfile.lock", "Gemfile.lock",
-    "bun.lockb", "bun.lock", "flake.lock", "packages.lock.json", "mix.lock"
-}
-
-BINARY_EXTENSIONS = {
-    # Images & icons
-    ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".webp", ".avif", ".bmp", ".tiff", ".psd",
-    # Fonts
-    ".woff", ".woff2", ".ttf", ".eot", ".otf",
-    # Archives & installers
-    ".zip", ".tar", ".gz", ".7z", ".rar", ".bz2", ".xz", ".zst", ".iso", ".dmg", ".deb", ".rpm", ".apk", ".ipa",
-    # Documents & media
-    ".pdf", ".docx", ".xlsx", ".pptx", ".doc", ".xls", ".mp4", ".mp3", ".mov", ".avi", ".webm", ".wav",
-    # Binaries, compiled objects & shared libraries
-    ".exe", ".bin", ".so", ".dylib", ".dll", ".pyc", ".class", ".jar", ".war", ".wasm", ".o", ".obj", ".a", ".lib",
-    # Data dumps, models & source maps
-    ".sqlite", ".sqlite3", ".db", ".parquet", ".arrow", ".avro", ".pt", ".pth", ".onnx", ".pkl", ".pickle", ".safetensors", ".map"
-}
+try:
+    from scripts.common import (
+        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        load_ignore_patterns, is_ignored
+    )
+except ImportError:
+    from common import (
+        DEFAULT_IGNORES, LOCKFILES, BINARY_EXTENSIONS,
+        load_ignore_patterns, is_ignored
+    )
 
 SEVERITY_ORDER = {
     "Critical": 4,
@@ -650,48 +633,6 @@ RULES = [
     }
 ]
 
-def load_ignore_patterns(root_dir):
-    patterns = set(p.rstrip("/") for p in DEFAULT_IGNORES)
-    ignore_file = Path(root_dir) / ".claugravityignore"
-    if ignore_file.is_file():
-        try:
-            with open(ignore_file, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        patterns.add(line)
-                        if line.endswith("/"):
-                            patterns.add(line.rstrip("/"))
-        except Exception:
-            pass
-    return patterns
-
-def is_ignored(path, root_dir, patterns):
-    try:
-        rel = path.relative_to(root_dir)
-    except ValueError:
-        return False
-    parts = rel.parts
-    rel_str = str(rel).replace(os.sep, "/")
-    for p in parts:
-        if p in patterns:
-            return True
-        for pat in patterns:
-            clean_pat = pat.rstrip("/")
-            if p == clean_pat or fnmatch.fnmatch(p, clean_pat):
-                return True
-    for pat in patterns:
-        clean_pat = pat.rstrip("/")
-        if rel_str == clean_pat or rel_str.startswith(clean_pat + "/"):
-            return True
-        if (fnmatch.fnmatch(rel_str, pat)
-            or fnmatch.fnmatch(rel_str, clean_pat)
-            or fnmatch.fnmatch(rel_str, clean_pat + "/*")
-            or fnmatch.fnmatch(path.name, pat)
-            or fnmatch.fnmatch(path.name, clean_pat)):
-            return True
-    return False
-
 def redact_secrets(snippet, rule):
     rule_id = rule.get("id", "")
     rule_cat = rule.get("category", "")
@@ -778,47 +719,36 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             lines = f.readlines()
 
+        def record_hit(rule, raw_text):
+            clean = redact_secrets(" ".join(raw_text.strip().split())[:160], rule)
+            hits.append({
+                "rule_id": rule["id"],
+                "category": rule["category"],
+                "severity": rule["severity_hint"],
+                "location": f"{rel_path}:{line_no}",
+                "line_number": line_no,
+                "file": rel_path,
+                "line_snippet": clean,
+                "explanation": rule["explanation"]
+            })
+
         for line_no, line in enumerate(lines, start=1):
             if len(line) > 1000:
                 continue
             for rule in applicable_rules:
                 if rule["id"] == "JS-BUG-EMPTY-CATCH":
-                    if not is_empty_catch(lines, line_no - 1):
-                        continue
-                    clean_line = redact_secrets(line.strip()[:160], rule)
-                    hits.append({
-                        "rule_id": rule["id"],
-                        "category": rule["category"],
-                        "severity": rule["severity_hint"],
-                        "location": f"{rel_path}:{line_no}",
-                        "line_number": line_no,
-                        "file": rel_path,
-                        "line_snippet": clean_line,
-                        "explanation": rule["explanation"]
-                    })
+                    if is_empty_catch(lines, line_no - 1):
+                        record_hit(rule, line)
                     continue
 
                 if rule["id"] == "JS-REACT-STALE-CLOSURE":
-                    if not re.search(r"""\buseEffect\s*\(""", line):
-                        continue
-                    has_empty_deps = False
-                    for j in range(line_no - 1, min(len(lines), line_no + 35)):
-                        if re.search(r"""\}\s*,\s*\[\s*\]\s*\)""", lines[j]) or re.search(r"""useEffect\s*\(.*?,\s*\[\s*\]\s*\)""", lines[j]):
-                            has_empty_deps = True
-                            break
-                    if not has_empty_deps:
-                        continue
-                    clean_line = redact_secrets(line.strip()[:160], rule)
-                    hits.append({
-                        "rule_id": rule["id"],
-                        "category": rule["category"],
-                        "severity": rule["severity_hint"],
-                        "location": f"{rel_path}:{line_no}",
-                        "line_number": line_no,
-                        "file": rel_path,
-                        "line_snippet": clean_line,
-                        "explanation": rule["explanation"]
-                    })
+                    if re.search(r"""\buseEffect\s*\(""", line):
+                        has_empty_deps = any(
+                            re.search(r"""\}\s*,\s*\[\s*\]\s*\)""", lines[j]) or re.search(r"""useEffect\s*\(.*?,\s*\[\s*\]\s*\)""", lines[j])
+                            for j in range(line_no - 1, min(len(lines), line_no + 35))
+                        )
+                        if has_empty_deps:
+                            record_hit(rule, line)
                     continue
 
                 m = rule["regex"].search(line)
@@ -827,20 +757,8 @@ def scan_file(file_path, root_dir, rules, category_filter=None, min_sev_score=0)
                         window = "".join(lines[line_no - 1 : min(len(lines), line_no + 12)])
                         m = rule["multiline_regex"].search(window)
 
-                if m:
-                    if is_placeholder_secret(m, rule):
-                        continue
-                    clean_line = redact_secrets(" ".join(line.strip().split())[:160], rule)
-                    hits.append({
-                        "rule_id": rule["id"],
-                        "category": rule["category"],
-                        "severity": rule["severity_hint"],
-                        "location": f"{rel_path}:{line_no}",
-                        "line_number": line_no,
-                        "file": rel_path,
-                        "line_snippet": clean_line,
-                        "explanation": rule["explanation"]
-                    })
+                if m and not is_placeholder_secret(m, rule):
+                    record_hit(rule, line)
     except Exception:
         pass
     return hits
