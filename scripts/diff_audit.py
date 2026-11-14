@@ -17,7 +17,6 @@ Examples:
 
 import argparse
 import json
-import os
 import re
 import subprocess
 import sys
@@ -89,7 +88,6 @@ def audit_diff(target_dir=".", diff_text=None, ref=None, staged=False):
     modified_files = [f for f, lines in changed_lines_map.items() if lines]
 
     diff_hits = []
-    total_unfiltered_hits = 0
 
     for rel_path in modified_files:
         full_path = root / rel_path
@@ -101,7 +99,6 @@ def audit_diff(target_dir=".", diff_text=None, ref=None, staged=False):
             root,
             find_risk_patterns.RULES
         )
-        total_unfiltered_hits += len(file_hits)
 
         modified_set = changed_lines_map.get(rel_path, set())
         for hit in file_hits:
