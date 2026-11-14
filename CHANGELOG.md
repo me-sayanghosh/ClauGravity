@@ -5,6 +5,15 @@ All notable changes to ClauGravity will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-14
+
+### Changed
+- **Shared Core Module (`scripts/common.py`)**: Extracted common ignore constants (`DEFAULT_IGNORES`), lockfile identifiers (`LOCKFILES`), binary extension catalogs (`BINARY_EXTENSIONS`), ignore file loaders (`load_ignore_patterns`), path matching (`is_ignored`), and fast binary line counters (`count_lines`).
+- **Codebase Deduplication & DRY Optimization**: Eliminated over 250 lines of duplicate code across `map_repo.py`, `chunk_plan.py`, `find_risk_patterns.py`, `run_checks.py`, `diff_audit.py`, `generate_report.py`, and `verify_citations.py` while preserving 100% backward compatibility.
+- **Streamlined Check Dispatch**: Refactored `scripts/run_checks.py` with unified check runner dispatch, drastically reducing boilerplate.
+- **Optimized Diff & Report Assembly**: Compacted unified diff parsing and markdown rendering in `scripts/diff_audit.py` and `scripts/generate_report.py`.
+- **Refined Citation Verifier**: Streamlined location parsing and multi-block finding extraction in `scripts/verify_citations.py`.
+
 ## [1.1.0] - 2026-11-13
 
 ### Added
