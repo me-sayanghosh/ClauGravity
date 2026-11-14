@@ -15,6 +15,9 @@
     "antigravity",
     "claude-code"
   ],
+  "commands": [
+    "./commands/claugravity.md"
+  ],
   "skills": [
     {
       "name": "claugravity",
