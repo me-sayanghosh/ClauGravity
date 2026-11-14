@@ -14,7 +14,6 @@ Examples:
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -26,7 +25,6 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import map_repo
 import run_checks
-import verify_citations
 
 def build_report(target_path=".", title=None, leads=None):
     root = Path(target_path).resolve()
