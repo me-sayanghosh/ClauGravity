@@ -39,36 +39,20 @@ def parse_diff_hunks(diff_text):
     current_line = 0
 
     for line in diff_text.splitlines():
-        if line.startswith("diff --git "):
-            current_file = None
-            continue
         if line.startswith("+++ b/"):
             current_file = line[6:].strip()
-            if current_file not in file_changes:
-                file_changes[current_file] = set()
-            continue
-        if line.startswith("+++ /dev/null"):
+            file_changes.setdefault(current_file, set())
+        elif line.startswith("+++ /dev/null") or line.startswith("diff --git "):
             current_file = None
-            continue
-
-        if not current_file:
-            continue
-
-        hunk_match = HUNK_REGEX.match(line)
-        if hunk_match:
-            start_line = int(hunk_match.group(1))
-            current_line = start_line
-            continue
-
-        if line.startswith("+") and not line.startswith("+++"):
-            file_changes[current_file].add(current_line)
-            current_line += 1
-        elif line.startswith("-") and not line.startswith("---"):
-            # Deletions do not advance the new file line counter
-            continue
-        elif not line.startswith("\\"):
-            # Context line
-            current_line += 1
+        elif current_file:
+            m = HUNK_REGEX.match(line)
+            if m:
+                current_line = int(m.group(1))
+            elif line.startswith("+") and not line.startswith("+++"):
+                file_changes[current_file].add(current_line)
+                current_line += 1
+            elif not line.startswith(("-", "\\")):
+                current_line += 1
 
     return file_changes
 
@@ -153,26 +137,20 @@ def audit_diff(target_dir=".", diff_text=None, ref=None, staged=False):
     }
 
 def format_pr_review_markdown(result):
-    lines = [
-        "# ClauGravity Pull Request / Diff Review",
-        f"**Verdict:** `{result['verdict']}`",
-        f"**Rationale:** {result['rationale']}",
-        f"**Modified Files Inspected:** {result['total_modified_files']}\n",
-        "## Touched Files",
-    ]
-    for f in result["modified_files"]:
-        lines.append(f"- `{f}`")
+    touched = "\n".join(f"- `{f}`" for f in result["modified_files"])
+    table = "\n".join(f"| **{h['severity']}** | `{h['rule_id']}` | `{h['location']}` | {h['explanation']} |" for h in result["hits"])
+    findings = f"| Severity | Rule ID | Location | Summary |\n| :--- | :--- | :--- | :--- |\n{table}" if result["hits"] else "No defects detected in modified code diff. Clean review."
+    return f"""# ClauGravity Pull Request / Diff Review
+**Verdict:** `{result['verdict']}`
+**Rationale:** {result['rationale']}
+**Modified Files Inspected:** {result['total_modified_files']}
 
-    lines.append(f"\n## Findings in Diff ({result['total_diff_leads']})")
-    if not result["hits"]:
-        lines.append("No defects detected in modified code diff. Clean review.")
-    else:
-        lines.append("| Severity | Rule ID | Location | Summary |")
-        lines.append("| :--- | :--- | :--- | :--- |")
-        for h in result["hits"]:
-            lines.append(f"| **{h['severity']}** | `{h['rule_id']}` | `{h['location']}` | {h['explanation']} |")
+## Touched Files
+{touched}
 
-    return "\n".join(lines) + "\n"
+## Findings in Diff ({result['total_diff_leads']})
+{findings}
+"""
 
 def main():
     parser = argparse.ArgumentParser(description="Audit pull requests and git diffs against ClauGravity risk patterns.")

@@ -46,108 +46,79 @@ def build_report(target_path=".", title=None, leads=None):
 
     date_str = datetime.now().strftime("%Y-%m-%d")
 
-    report_lines = [
-        f"# {report_title}",
-        f"**Target Repository:** `{root}`  ",
-        f"**Date:** {date_str}  ",
-        f"**Scope:** Whole-repository risk-ordered audit  ",
-        f"**Languages:** {lang_str}  ",
-        f"**Frameworks:** {fw_str}  ",
-        f"**Total Scope:** {map_data['total_files']} source files, {map_data['total_loc']} LOC  \n",
-        "---",
-        "",
-        "## 1. Executive Summary",
-        f"An evidence-driven security and reliability audit was conducted across `{root}`.",
-        "Analysis combined automated static rule scanning, sink-to-source data flow tracing, and a falsification pass.",
-        "",
-        "### Key Findings by Severity",
-        "| Severity | Count | Primary Impact Areas |",
-        "| :--- | :--- | :--- |",
-        "| **Critical** | 0 | Remote code execution, unauthenticated admin actions, SQL/NoSQL injection |",
-        "| **High** | 0 | Concurrency race conditions, privilege escalation, SSRF, token leakage |",
-        "| **Medium** | 0 | Logic errors, floating promises, unhandled exceptions, missing limits |",
-        "| **Low / Info** | 0 | Cryptographic hygiene, loose equality, verbose logging |",
-        "",
-        "---",
-        "",
-        "## 2. Automated Tooling & Pre-Check Signals",
-        f"Ran {check_report['total_checks']} native checks: {check_report['passed']} passed, {check_report['failed']} failed, {check_report['skipped']} skipped.",
-        "",
-        "| Tool / Check | Category | Status | Details |",
-        "| :--- | :--- | :--- | :--- |"
-    ]
+    checks_table = "\n".join(f"| `{c['name']}` | {c['category']} | `{c['status']}` | {c.get('output', '')[:60] or '-'} |" for c in check_report["checks"])
 
-    for c in check_report["checks"]:
-        report_lines.append(f"| `{c['name']}` | {c['category']} | `{c['status']}` | {c['output'][:60] if c.get('output') else '-'} |")
-
-    report_lines.extend([
-        "",
-        "---",
-        "",
-        "## 3. Confirmed Vulnerability & Reliability Findings",
-        ""
-    ])
+    def format_lead(idx, lead):
+        title_text = lead.get("title") or lead.get("explanation") or "Detected Risk Lead"
+        loc = lead.get("location") or f"{lead.get('file', 'src/app.js')}:{lead.get('line_number', 1)}"
+        snip = lead.get("line_snippet") or "// code excerpt"
+        expl = lead.get("explanation") or "Defect allows unexpected behavior."
+        return (
+            f"### [CG-{idx:03d}]: {title_text}\n"
+            f"- **Severity:** {lead.get('severity', 'Medium')}\n"
+            f"- **Confidence:** High\n"
+            f"- **Category:** {lead.get('category', 'Security')}\n"
+            f"- **Location:** `{loc}`\n\n"
+            f"**Evidence:**\n```js\n{snip}\n```\n\n"
+            "**Trigger & Call Path:**\n1. User sends input to endpoint.\n2. Handler executes without validation.\n\n"
+            f"**Impact:** {expl}\n\n"
+            f"**Minimal Fix Diff:**\n```diff\n- {snip}\n+ // remediated implementation\n```\n\n---"
+        )
 
     if leads:
-        for idx, lead in enumerate(leads, start=1):
-            finding_id = f"CG-{idx:03d}"
-            rule_id = lead.get("rule_id", "RISK")
-            title_text = lead.get("title", lead.get("explanation", "Detected Risk Lead"))
-            loc = lead.get("location", f"{lead.get('file', 'src/app.js')}:{lead.get('line_number', 1)}")
-            sev = lead.get("severity", "Medium")
-            cat = lead.get("category", "Security")
-            snippet = lead.get("line_snippet", "// code excerpt")
-
-            report_lines.extend([
-                f"### [{finding_id}]: {title_text}",
-                f"- **Severity:** {sev}",
-                f"- **Confidence:** High",
-                f"- **Category:** {cat}",
-                f"- **Location:** `{loc}`",
-                "",
-                "**Evidence:**",
-                "```js",
-                snippet,
-                "```",
-                "",
-                "**Trigger & Call Path:**",
-                "1. User sends input to endpoint.",
-                "2. Handler executes without validation.",
-                "",
-                f"**Impact:** {lead.get('explanation', 'Defect allows unexpected behavior.')}",
-                "",
-                "**Minimal Fix Diff:**",
-                "```diff",
-                f"- {snippet}",
-                f"+ // remediated implementation",
-                "```",
-                "",
-                "---",
-                ""
-            ])
+        findings_md = "\n".join(format_lead(idx, lead) for idx, lead in enumerate(leads, start=1))
     else:
-        report_lines.extend([
-            "*(No confirmed findings populated yet. Use `scripts/find_risk_patterns.py` to extract candidate leads, run the Disprove Pass, and insert confirmed findings using `templates/finding.md`.)*",
-            "",
-            "---",
-            ""
-        ])
+        findings_md = "*(No confirmed findings populated yet. Use `scripts/find_risk_patterns.py` to extract candidate leads, run the Disprove Pass, and insert confirmed findings using `templates/finding.md`.)*\n\n---"
 
-    report_lines.extend([
-        "## 4. Coverage and Limitations",
-        f"- **Files Audited:** {map_data['total_files']} source files.",
-        "- **Skipped Directories:** Standard ignore patterns (.git, node_modules, build, dist, venv).",
-        "- **Testing Gaps:** Reproduction conducted in isolated temporary environments; no production systems touched.",
-        "",
-        "---",
-        "",
-        "## 5. Remediation Roadmap",
-        "1. **Immediate (P0):** Remediate Critical and High severity findings.",
-        "2. **Next Sprint (P1):** Fix Medium severity reliability and concurrency defects.",
-        "3. **Hygiene (P2):** Clean up low-severity lints and documentation nits."
-    ])
+    return f"""# {report_title}
+**Target Repository:** `{root}`  
+**Date:** {date_str}  
+**Scope:** Whole-repository risk-ordered audit  
+**Languages:** {lang_str}  
+**Frameworks:** {fw_str}  
+**Total Scope:** {map_data['total_files']} source files, {map_data['total_loc']} LOC  
 
-    return "\n".join(report_lines) + "\n"
+---
+
+## 1. Executive Summary
+An evidence-driven security and reliability audit was conducted across `{root}`.
+Analysis combined automated static rule scanning, sink-to-source data flow tracing, and a falsification pass.
+
+### Key Findings by Severity
+| Severity | Count | Primary Impact Areas |
+| :--- | :--- | :--- |
+| **Critical** | 0 | Remote code execution, unauthenticated admin actions, SQL/NoSQL injection |
+| **High** | 0 | Concurrency race conditions, privilege escalation, SSRF, token leakage |
+| **Medium** | 0 | Logic errors, floating promises, unhandled exceptions, missing limits |
+| **Low / Info** | 0 | Cryptographic hygiene, loose equality, verbose logging |
+
+---
+
+## 2. Automated Tooling & Pre-Check Signals
+Ran {check_report['total_checks']} native checks: {check_report['passed']} passed, {check_report['failed']} failed, {check_report['skipped']} skipped.
+
+| Tool / Check | Category | Status | Details |
+| :--- | :--- | :--- | :--- |
+{checks_table}
+
+---
+
+## 3. Confirmed Vulnerability & Reliability Findings
+
+{findings_md}
+
+## 4. Coverage and Limitations
+- **Files Audited:** {map_data['total_files']} source files.
+- **Skipped Directories:** Standard ignore patterns (.git, node_modules, build, dist, venv).
+- **Testing Gaps:** Reproduction conducted in isolated temporary environments; no production systems touched.
+
+---
+
+## 5. Remediation Roadmap
+1. **Immediate (P0):** Remediate Critical and High severity findings.
+2. **Next Sprint (P1):** Fix Medium severity reliability and concurrency defects.
+3. **Hygiene (P2):** Clean up low-severity lints and documentation nits.
+"""
 
 def main():
     parser = argparse.ArgumentParser(description="Scaffold a compliant ClauGravity audit report.")
