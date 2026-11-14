@@ -14,14 +14,12 @@ Examples:
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
 
 LOCATION_REGEX = re.compile(r"""\*\*Location:\*\*\s*(?:\[`?|[`"<])?([a-zA-Z0-9_./\\-]+(?::\s*L?\d+(?:\s*-\s*L?\d+)?)?)(?:`?\](?:\([^)]*\))?|[`">])?""")
 EVIDENCE_REGEX = re.compile(r"""\*\*Evidence:\*\*(?:[^\n`]*\r?\n\s*)*?(`{3,4})[a-zA-Z0-9_-]*[ \t]*\r?\n(.*?)\1""", re.DOTALL)
-FINDING_HEADER_REGEX = re.compile(r"""^#{2,4}\s+(?:\[?([A-Za-z0-9_-]+)\]?:?|([A-Za-z0-9_-]+:))\s*(.*)$""", re.M)
 
 def normalize_text(text):
     lines = [re.sub(r"""\s+""", " ", line).strip() for line in text.splitlines()]
